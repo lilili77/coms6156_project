@@ -2,12 +2,15 @@ from aws_cdk import (
     # Duration,
     Stack,
     # aws_sqs as sqs,
+    aws_s3,
+    aws_s3_deployment,
     aws_ec2, aws_ecs, aws_ecs_patterns,
     aws_rds, aws_secretsmanager,
     CfnOutput
 )
 from constructs import Construct
 import json
+
 
 class MainStack(Stack):
 
@@ -35,7 +38,7 @@ class MainStack(Stack):
             vpc=vpc
         )
 
-        ## ECS frontended by ALB
+        ## ECS frontend by ALB
         cluster = aws_ecs.Cluster(self, 'MyCluster', vpc=vpc)
         load_balanced_fargate_service = aws_ecs_patterns.ApplicationLoadBalancedFargateService(
             self, "FargateService",
@@ -45,7 +48,21 @@ class MainStack(Stack):
                 secrets={"dbsecret":aws_ecs.Secret.from_secrets_manager(templated_secret)}
             )
         )
+        
+        # S3 static website
+        website_bucket = aws_s3.Bucket(
+            self,
+            "WebsiteBucket",
+            website_index_document="index.html",
+            website_error_document="404.html",
+            public_read_access=True
+        )
+        
+        aws_s3_deployment.BucketDeployment(self, "DeployWebsite",
+            sources=[aws_s3_deployment.Source.asset("../frontend/out")],
+            destination_bucket=website_bucket,
+        )
 
         ## Output
-        CfnOutput(self, 'SericeURL', value="http://{}".format(
+        CfnOutput(self, 'ServiceURL', value="http://{}".format(
             load_balanced_fargate_service.load_balancer.load_balancer_dns_name))
