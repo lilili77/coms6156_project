@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_s3_deployment,
     aws_ec2, aws_ecs, aws_ecs_patterns,
     aws_rds, aws_secretsmanager,
+    aws_apigateway,
     CfnOutput
 )
 from constructs import Construct
@@ -34,6 +35,7 @@ class MainStack(Stack):
         # Using the templated secret as credentials
         postgresRDS = aws_rds.DatabaseInstance(self, "PostgresInstance",
             engine=aws_rds.DatabaseInstanceEngine.POSTGRES,
+            instance_type=aws_ec2.InstanceType.of(aws_ec2.InstanceClass.T4G, aws_ec2.InstanceSize.MICRO),
             credentials=aws_rds.Credentials.from_secret(templated_secret),
             vpc=vpc
         )
@@ -48,20 +50,29 @@ class MainStack(Stack):
                 secrets={"dbsecret":aws_ecs.Secret.from_secrets_manager(templated_secret)}
             )
         )
+
+        ## API Gateway
+        api = aws_apigateway.RestApi(self, "api")
+        user = api.root.add_resource("user")
+        video = api.root.add_resource("video")
+        room = api.root.add_resource("room")
+        user.add_method("GET", aws_apigateway.HttpIntegration(
+            f"http://{load_balanced_fargate_service.load_balancer.load_balancer_dns_name}"
+        ))
         
-        # S3 static website
-        website_bucket = aws_s3.Bucket(
-            self,
-            "WebsiteBucket",
-            website_index_document="index.html",
-            website_error_document="404.html",
-            public_read_access=True
-        )
+        # # S3 static website
+        # website_bucket = aws_s3.Bucket(
+        #     self,
+        #     "WebsiteBucket",
+        #     website_index_document="index.html",
+        #     website_error_document="404.html",
+        #     public_read_access=True
+        # )
         
-        aws_s3_deployment.BucketDeployment(self, "DeployWebsite",
-            sources=[aws_s3_deployment.Source.asset("../frontend/out")],
-            destination_bucket=website_bucket,
-        )
+        # aws_s3_deployment.BucketDeployment(self, "DeployWebsite",
+        #     sources=[aws_s3_deployment.Source.asset("../frontend/out")], #Resource not found
+        #     destination_bucket=website_bucket,
+        # )
 
         ## Output
         CfnOutput(self, 'ServiceURL', value="http://{}".format(
