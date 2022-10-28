@@ -4,14 +4,14 @@ import json
 app = Flask(__name__)
 
 
-@app.route('/ec2/dbtest')
+@app.route('/dbtest')
 def dbtest():
     dbhost = json.loads(os.environ.get('dbsecret',"{}"))
     return f"<p>DB host: {dbhost.get('host','Not Found')}</p>"
 
-@app.route('/ec2')
-def ec2():
-    return f"<p>EC2 routing success</p>"
+@app.route('/fargate')
+def fargate():
+    return f"<p>Fargate routing success</p>"
 
 @app.route('/')
 def home():
