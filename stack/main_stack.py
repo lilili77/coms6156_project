@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_rds, aws_secretsmanager,
     aws_apigateway,
     aws_elasticloadbalancingv2,
+    aws_logs,
     CfnOutput
 )
 from constructs import Construct
@@ -54,7 +55,8 @@ class MainStack(Stack):
             image=aws_ecs.ContainerImage.from_asset('flaskapp'),
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
-            secrets={"dbsecret":aws_ecs.Secret.from_secrets_manager(templated_secret)}
+            secrets={"dbsecret":aws_ecs.Secret.from_secrets_manager(templated_secret)},
+            logging=aws_ecs.LogDrivers.aws_logs(stream_prefix="ec2log",log_retention=aws_logs.RetentionDays.ONE_DAY)
         )
         ec2_service = aws_ecs.Ec2Service(self, "Ec2Service",
             cluster=cluster,
@@ -66,9 +68,10 @@ class MainStack(Stack):
             memory_limit_mib=512,
         )
         container = fargate_task_definition.add_container("Container",
-            # Use an image from DockerHub
             image=aws_ecs.ContainerImage.from_asset('flaskapp2'),
-            port_mappings=[aws_ecs.PortMapping(container_port=80)]
+            port_mappings=[aws_ecs.PortMapping(container_port=80)],
+            secrets={"dbsecret":aws_ecs.Secret.from_secrets_manager(templated_secret)},
+            logging=aws_ecs.LogDrivers.aws_logs(stream_prefix="fargatelog",log_retention=aws_logs.RetentionDays.ONE_DAY)
         )
         fargate_service = aws_ecs.FargateService(self, "Service",
             cluster=cluster,
@@ -85,14 +88,12 @@ class MainStack(Stack):
         # to the world.
         listener = lb.add_listener("Listener",
             port=80,
-
             # 'open: true' is the default, you can leave it out if you want. Set it
             # to 'false' and use `listener.connections` if you want to be selective
             # about who can access the load balancer.
             open=True
         )
-        # Create an AutoScaling group and add it as a load balancing
-        # target to the listener.
+        # Add target to the listener.
         listener.add_action("Fixed",
             action=aws_elasticloadbalancingv2.ListenerAction.fixed_response(200,
                 content_type="text/plain",
@@ -111,7 +112,7 @@ class MainStack(Stack):
             port=80,
             priority=2,
             conditions=[
-                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/fargate"])
+                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/fargate","/fargate/dbtest"])
             ],
             targets=[fargate_service]
         )

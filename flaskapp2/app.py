@@ -1,11 +1,16 @@
 from flask import Flask
 import os
 import json
+
+from db import DButil
+
 app = Flask(__name__)
 
 
-@app.route('/dbtest')
+@app.route('/fargate/dbtest')
 def dbtest():
+    db = DButil()
+    db.close()
     dbhost = json.loads(os.environ.get('dbsecret',"{}"))
     return f"<p>DB host: {dbhost.get('host','Not Found')}</p>"
 

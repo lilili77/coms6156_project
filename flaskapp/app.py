@@ -1,13 +1,20 @@
 from flask import Flask
 import os
 import json
+
+from db import DButil
+
 app = Flask(__name__)
 
 
 @app.route('/ec2/dbtest')
 def dbtest():
+    # for key,val in os.environ.items():
+    #     print(f"{key}:{val}")
+    db = DButil()
+    db.close()
     dbhost = json.loads(os.environ.get('dbsecret',"{}"))
-    return f"<p>DB host: {dbhost.get('host','Not Found')}</p>"
+    return f"<p>DB host: {dbhost.get('host','Not Found')}. Test connect</p>"
 
 @app.route('/ec2')
 def ec2():
