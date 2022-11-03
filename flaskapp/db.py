@@ -26,7 +26,7 @@ class DButil():
         except Exception as ex:
             self.logger.critical("Connection could not be made due to the following error: \n", ex)
 
-
+    # Please call this function to dispose after you are done with the engine
     def close(self):
         if DButil.engine:
             DButil.engine.dispose()
