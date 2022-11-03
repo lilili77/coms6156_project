@@ -104,7 +104,7 @@ class MainStack(Stack):
             port=80,
             priority=1,
             conditions=[
-                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/ec2","/ec2/dbtest"])
+                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/ec2","/ec2/*"])
             ],
             targets=[ec2_service]
         )
@@ -112,7 +112,7 @@ class MainStack(Stack):
             port=80,
             priority=2,
             conditions=[
-                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/fargate","/fargate/dbtest"])
+                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(["/fargate","/fargate/*"])
             ],
             targets=[fargate_service]
         )

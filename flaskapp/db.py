@@ -25,7 +25,7 @@ class DButil():
             self.logger.critical(f"Connection to the {self.host} for user {self.user} created successfully.")
         except Exception as ex:
             self.logger.critical("Connection could not be made due to the following error: \n", ex)
-            
+
 
     def close(self):
         if DButil.engine:
