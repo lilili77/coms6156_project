@@ -40,7 +40,7 @@ $ pip install -r requirements.txt
 At this point you can now synthesize the CloudFormation template for this code.
 
 ```
-$ cdk synth
+$ cdk synth <construct_id>
 ```
 
 To add additional dependencies, for example other CDK libraries, just add
@@ -55,4 +55,29 @@ command.
  * `cdk diff`        compare deployed stack with current state
  * `cdk docs`        open CDK documentation
 
-Enjoy!
+## Steps to deploy Zoomflex
+1. Deploy the main stack:
+    ```
+    $ cdk synth COMS6156ProjectStack
+    $ cdk deploy COMS6156ProjectStack
+    ```
+
+2. Build Frontend app with updated backend URL:
+   - Update `API_ENDPOINT` in /frontend/lib/api-fetch.ts
+   - Build frontend app:
+     ```
+     $ cd frontend
+     $ yarn deploy
+     ```
+   
+3. Deploy the frontend stack:
+    ```
+    $ cdk synth COMS6156FrontendStack
+    $ cdk deploy COMS6156FrontendStack
+    ```
+
+4. Clean up:
+   ```
+   $ cdk destroy COMS6156FrontendStack
+   $ cdk destroy COMS6156ProjectStack
+   ```
