@@ -9,11 +9,14 @@ from aws_cdk import (
     aws_apigateway,
     aws_elasticloadbalancingv2,
     aws_logs,
+    aws_elasticbeanstalk as elasticbeanstalk,
+    aws_s3_assets,
     CfnOutput
 )
 from constructs import Construct
 import json
 
+import os
 
 class MainStack(Stack):
 
@@ -45,6 +48,48 @@ class MainStack(Stack):
             vpc=vpc
         )
 
+        ## EB
+        # S3 asset
+        eb_asset = aws_s3_assets.Asset(self, "BundledAsset",
+            path=os.getcwd()+"/flaskapp3" #os.path.join(os.getcwd(), "markdown-asset")
+        )
+
+        appName = "MyCfnApplication"
+        cfn_application = elasticbeanstalk.CfnApplication(self, "MyCfnApplication",
+            application_name=appName,
+        )
+        
+        cfn_application_version = elasticbeanstalk.CfnApplicationVersion(self, "MyCfnApplicationVersion",
+            application_name=appName,
+            source_bundle=elasticbeanstalk.CfnApplicationVersion.SourceBundleProperty(
+                s3_bucket=eb_asset.s3_bucket_name,
+                s3_key=eb_asset.s3_object_key
+            )
+        )
+
+        cfn_environment = elasticbeanstalk.CfnEnvironment(self, "MyCfnEnvironment",
+            application_name=appName,
+            solution_stack_name="64bit Amazon Linux 2 v3.4.0 running Python 3.8",
+            option_settings=[
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:autoscaling:launchconfiguration",
+                    option_name="InstanceType",
+                    value="t3.small"
+                ),
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:autoscaling:launchconfiguration",
+                    option_name="IamInstanceProfile",
+                    value="aws-elasticbeanstalk-ec2-role"
+                ),
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:elasticbeanstalk:container:python",
+                    option_name="WSGIPath",
+                )
+            ],
+            version_label=cfn_application_version.ref
+        )
+        cfn_application_version.node.add_dependency(cfn_application)
+
         ## EC2
         cluster.add_capacity("Capacity",
             instance_type=aws_ec2.InstanceType("t2.small"),
@@ -62,6 +107,7 @@ class MainStack(Stack):
             cluster=cluster,
             task_definition=task_definition
         )
+        task_definition.node.add_dependency(postgresRDS)
 
         ## ECS
         fargate_task_definition = aws_ecs.FargateTaskDefinition(self, "FargateTaskDef",
@@ -78,6 +124,7 @@ class MainStack(Stack):
             task_definition=fargate_task_definition,
             desired_count=1
         )
+        fargate_task_definition.node.add_dependency(postgresRDS)
 
         ## LB
         lb = aws_elasticloadbalancingv2.ApplicationLoadBalancer(self, "LB",
@@ -147,3 +194,8 @@ class MainStack(Stack):
 
         ## Output
         CfnOutput(self, 'LBServiceURL', value=f"http://{lb.load_balancer_dns_name}")
+        CfnOutput(self, 'EBURL', value=cfn_environment.attr_endpoint_url)
+        CfnOutput(self, 'EBBucket', value=eb_asset.s3_bucket_name)
+        CfnOutput(self, 'EBKey', value=eb_asset.s3_object_key)
+        
+        
