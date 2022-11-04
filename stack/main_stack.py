@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_logs,
     aws_elasticbeanstalk as elasticbeanstalk,
     aws_s3_assets,
+    aws_iam,
     CfnOutput
 )
 from constructs import Construct
@@ -49,7 +50,7 @@ class MainStack(Stack):
         )
 
         ## EB
-        # S3 asset
+        # S3 asset for eb
         eb_asset = aws_s3_assets.Asset(self, "BundledAsset",
             path=os.getcwd()+"/flaskapp3" #os.path.join(os.getcwd(), "markdown-asset")
         )
@@ -67,6 +68,7 @@ class MainStack(Stack):
             )
         )
 
+        eb_ec2_role_name = "aws-elasticbeanstalk-ec2-role"
         cfn_environment = elasticbeanstalk.CfnEnvironment(self, "MyCfnEnvironment",
             application_name=appName,
             solution_stack_name="64bit Amazon Linux 2 v3.4.0 running Python 3.8",
@@ -79,16 +81,36 @@ class MainStack(Stack):
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:autoscaling:launchconfiguration",
                     option_name="IamInstanceProfile",
-                    value="aws-elasticbeanstalk-ec2-role"
+                    value=eb_ec2_role_name
                 ),
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:container:python",
                     option_name="WSGIPath",
+                ),
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:elasticbeanstalk:cloudwatch:logs",
+                    option_name="StreamLogs",
+                    value="true"
+                ),
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:elasticbeanstalk:cloudwatch:logs",
+                    option_name="RetentionInDays",
+                    value="1"
+                ),
+                # Env var
+                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                    namespace="aws:elasticbeanstalk:application:environment",
+                    option_name="DBSECRET",
+                    value=templated_secret.secret_full_arn
                 )
             ],
             version_label=cfn_application_version.ref
         )
         cfn_application_version.node.add_dependency(cfn_application)
+        
+        # Grant eb access to secret
+        eb_ec2_role = aws_iam.Role.from_role_name(self,"eb_ec2_role",eb_ec2_role_name)
+        templated_secret.grant_read(eb_ec2_role)
 
         ## EC2
         cluster.add_capacity("Capacity",
@@ -197,5 +219,3 @@ class MainStack(Stack):
         CfnOutput(self, 'EBURL', value=cfn_environment.attr_endpoint_url)
         CfnOutput(self, 'EBBucket', value=eb_asset.s3_bucket_name)
         CfnOutput(self, 'EBKey', value=eb_asset.s3_object_key)
-        
-        

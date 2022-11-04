@@ -7,3 +7,5 @@ Werkzeug==2.2.2
 # db
 psycopg2-binary
 SQLAlchemy==1.4.42
+
+boto3
