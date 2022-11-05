@@ -12,6 +12,8 @@ from aws_cdk import (
     aws_elasticbeanstalk as elasticbeanstalk,
     aws_s3_assets,
     aws_iam,
+    aws_logs,
+    RemovalPolicy,
     CfnOutput)
 from constructs import Construct
 import json
@@ -26,13 +28,13 @@ class MainStack(Stack):
 
         # The code that defines your stack goes here
 
-        # VPC
+        # --------------------- VPC ---------------------
         vpc = aws_ec2.Vpc(self, 'MyVPC', cidr='10.0.0.0/16', max_azs=2)
 
-        # Cluster
+        # --------------------- Cluster ---------------------
         cluster = aws_ecs.Cluster(self, 'MyCluster', vpc=vpc)
 
-        # RDS Postgres
+        # --------------------- RDS ---------------------
         # Templated secret with username and password fields
         templated_secret = aws_secretsmanager.Secret(
             self,
@@ -51,14 +53,11 @@ class MainStack(Stack):
             credentials=aws_rds.Credentials.from_secret(templated_secret),
             vpc=vpc)
 
-        # EB
+        # --------------------- EB ---------------------
         # S3 asset for eb
-        eb_asset = aws_s3_assets.Asset(
-            self,
-            "BundledAsset",
-            path=os.getcwd() +
-            "/flaskapp3"  # os.path.join(os.getcwd(), "markdown-asset")
-        )
+        eb_asset = aws_s3_assets.Asset(self,
+                                       "BundledAsset",
+                                       path=os.getcwd() + "/flaskapp3")
 
         appName = "MyCfnApplication"
         cfn_application = elasticbeanstalk.CfnApplication(
@@ -80,7 +79,8 @@ class MainStack(Stack):
             self,
             "MyCfnEnvironment",
             application_name=appName,
-            solution_stack_name="64bit Amazon Linux 2 v3.4.0 running Python 3.8",
+            solution_stack_name=
+            "64bit Amazon Linux 2 v3.4.1 running Python 3.8",
             option_settings=[
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:autoscaling:launchconfiguration",
@@ -94,14 +94,15 @@ class MainStack(Stack):
                     namespace="aws:elasticbeanstalk:container:python",
                     option_name="WSGIPath",
                 ),
+                # Logs
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:cloudwatch:logs",
                     option_name="StreamLogs",
                     value="true"),
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:cloudwatch:logs",
-                    option_name="RetentionInDays",
-                    value="1"),
+                    option_name="DeleteOnTerminate",
+                    value="true"),
                 # Env var
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:application:environment",
@@ -116,7 +117,13 @@ class MainStack(Stack):
                                                   eb_ec2_role_name)
         templated_secret.grant_read(eb_ec2_role)
 
-        # EC2
+        # --------------------- EC2 ---------------------
+        ec2log_group = aws_logs.LogGroup(
+            self,
+            "EC2CustomLogGroup",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         cluster.add_capacity("Capacity",
                              instance_type=aws_ec2.InstanceType("t2.small"),
                              desired_capacity=1)
@@ -132,7 +139,8 @@ class MainStack(Stack):
             },
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="ec2log",
-                log_retention=aws_logs.RetentionDays.ONE_DAY))
+                log_group=ec2log_group,
+            ))
 
         ec2_service = aws_ecs.Ec2Service(self,
                                          "Ec2Service",
@@ -140,7 +148,13 @@ class MainStack(Stack):
                                          task_definition=task_definition)
         task_definition.node.add_dependency(postgresRDS)
 
-        # ECS
+        # --------------------- ECS ---------------------
+        fargatelog_group = aws_logs.LogGroup(
+            self,
+            "FargateCustomLogGroup",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         fargate_task_definition = aws_ecs.FargateTaskDefinition(
             self,
             "FargateTaskDef",
@@ -156,7 +170,8 @@ class MainStack(Stack):
             },
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="fargatelog",
-                log_retention=aws_logs.RetentionDays.ONE_DAY))
+                log_group=fargatelog_group,
+            ))
         fargate_service = aws_ecs.FargateService(
             self,
             "Service",
@@ -165,11 +180,10 @@ class MainStack(Stack):
             desired_count=1)
         fargate_task_definition.node.add_dependency(postgresRDS)
 
-        # LB
+        # --------------------- LB ---------------------
         lb = aws_elasticloadbalancingv2.ApplicationLoadBalancer(
             self, "LB", vpc=vpc, internet_facing=True)
         # Add a listener and open up the load balancer's security group
-        # to the world.
         listener = lb.add_listener(
             "Listener",
             port=80,
@@ -181,14 +195,16 @@ class MainStack(Stack):
         listener.add_action(
             "Fixed",
             action=aws_elasticloadbalancingv2.ListenerAction.fixed_response(
-                200, content_type="text/plain", message_body="No match found"))
+                200,
+                content_type="text/plain",
+                message_body="LB No match found"))
         listener.add_targets(
             "Ec2",
             port=80,
             priority=1,
             conditions=[
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
-                    ["/ec2", "/ec2/*"])
+                    ["/video", "/video/*"])
             ],
             targets=[ec2_service])
         listener.add_targets(
@@ -197,29 +213,88 @@ class MainStack(Stack):
             priority=2,
             conditions=[
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
-                    ["/fargate", "/fargate/*"])
+                    ["/user", "/user/*"])
             ],
             targets=[fargate_service])
 
-        # API Gateway
+        # --------------------- API Gateway ---------------------
         api = aws_apigateway.RestApi(self, "api")
-        proxy = api.root.add_proxy(
+
+        api.root.add_method(
+            "GET",
+            aws_apigateway.MockIntegration(integration_responses=[
+                aws_apigateway.IntegrationResponse(
+                    status_code="200",
+                    response_templates={
+                        "application/json":
+                        "{'validPath':['/rooms','/rooms/dbtest','/user','/user/dbtest','/video','/video/dbtest']}"
+                    },
+                )
+            ],
+                                           request_templates={
+                                               "application/json":
+                                               "{ 'statusCode': 200 }"
+                                           }),
+            method_responses=[
+                aws_apigateway.MethodResponse(status_code="200")
+            ])
+
+        rooms = api.root.add_resource("rooms")
+        rooms.add_method(
+            "ANY",
+            aws_apigateway.HttpIntegration(
+                f"http://{cfn_environment.attr_endpoint_url}/rooms"))
+        rooms.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
                 request_parameters={"method.request.path.proxy": True}),
             default_integration=aws_apigateway.HttpIntegration(
-                f"http://{lb.load_balancer_dns_name}/{{proxy}}",
+                f"http://{cfn_environment.attr_endpoint_url}/rooms/{{proxy}}",
                 proxy=True,
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
                     "method.request.path.proxy"
                 })))
 
-        # Output
+        video = api.root.add_resource("video")
+        video.add_method(
+            "ANY",
+            aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/video"))
+        proxy = video.add_proxy(
+            any_method=True,
+            default_method_options=aws_apigateway.MethodOptions(
+                request_parameters={"method.request.path.proxy": True}),
+            default_integration=aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/video/{{proxy}}",
+                proxy=True,
+                options=aws_apigateway.IntegrationOptions(request_parameters={
+                    "integration.request.path.proxy":
+                    "method.request.path.proxy"
+                })))
+
+        user = api.root.add_resource("user")
+        user.add_method(
+            "ANY",
+            aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/user"))
+        user.add_proxy(
+            any_method=True,
+            default_method_options=aws_apigateway.MethodOptions(
+                request_parameters={"method.request.path.proxy": True}),
+            default_integration=aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/user/{{proxy}}",
+                proxy=True,
+                options=aws_apigateway.IntegrationOptions(request_parameters={
+                    "integration.request.path.proxy":
+                    "method.request.path.proxy"
+                })))
+
+        # --------------------- Output ---------------------
+        CfnOutput(self, 'ApiURL', value=api.url)
         CfnOutput(self,
-                  'LBServiceURL',
+                  'LoadBalancerServiceURL',
                   value=f"http://{lb.load_balancer_dns_name}")
-        CfnOutput(self, 'EBURL', value=cfn_environment.attr_endpoint_url)
-        CfnOutput(self, 'EBBucket', value=eb_asset.s3_bucket_name)
-        CfnOutput(self, 'EBKey', value=eb_asset.s3_object_key)
-        CfnOutput(self, 'APIURL', value=api.url)
+        CfnOutput(self,
+                  'ElasticBeanstalkURL',
+                  value=cfn_environment.attr_endpoint_url)
