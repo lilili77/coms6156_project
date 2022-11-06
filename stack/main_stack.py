@@ -134,7 +134,8 @@ class MainStack(Stack):
         ec2_service = aws_ecs.Ec2Service(self,
                                          "Ec2Service",
                                          cluster=cluster,
-                                         task_definition=task_definition)
+                                         task_definition=task_definition,
+                                         desired_count=1)
         task_definition.node.add_dependency(postgresRDS)
 
         # --------------------- ECS ---------------------
