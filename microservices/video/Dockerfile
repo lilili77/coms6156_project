@@ -2,7 +2,8 @@
 FROM python:3.8-alpine
 
 # copy the requirements file into the image
-COPY ./requirements.txt /app/requirements.txt
+COPY ./video/requirements.txt /app/requirements.txt
+COPY ./room/db.py /room/db.py
 
 # switch working directory
 WORKDIR /app
@@ -11,7 +12,7 @@ WORKDIR /app
 RUN pip install -r requirements.txt
 
 # copy every content from the local file to the image
-COPY . /app
+COPY ./video /app
 
 # configure the container to run in an executed manner
 ENTRYPOINT [ "python" ]

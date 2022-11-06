@@ -7,6 +7,8 @@ import boto3
 import base64
 from botocore.exceptions import ClientError
 
+# This app is deployed in Elastic Beanstalk
+# Log group for this instance is at /aws/elasticbeanstalk/COMS-MyCf-{some id}/var/log/web.stdout.log in CloudWatch
 application = Flask(__name__)
 
 
@@ -44,16 +46,16 @@ def home():
     return "<p>EB!</p>"
 
 
-@application.route('/rooms')
-def rooms():
-    return f"<p>route:/rooms instance:EB folder:flaskapp3</p>"
+@application.route('/room')
+def room():
+    return f"<p>route:/room instance:EB</p>"
 
 
-@application.route('/rooms/dbtest')
-def roomsTest():
+@application.route('/room/dbtest')
+def roomTest():
     db = DButil(json.loads(get_secret()))
     db.close()
-    return f"<p>route:/rooms/dbtest instance:EB folder:flaskapp3</p> <br> <p>DB info: {get_secret()}</p>"
+    return f"<p>route:/room/dbtest instance:EB</p> <br> <p>DB info: {get_secret()}</p>"
 
 
 if __name__ == "__main__":

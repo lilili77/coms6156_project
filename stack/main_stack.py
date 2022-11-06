@@ -1,20 +1,7 @@
-from aws_cdk import (
-    # Duration,
-    Stack,
-    # aws_sqs as sqs,
-    aws_ec2,
-    aws_ecs,
-    aws_rds,
-    aws_secretsmanager,
-    aws_apigateway,
-    aws_elasticloadbalancingv2,
-    aws_logs,
-    aws_elasticbeanstalk as elasticbeanstalk,
-    aws_s3_assets,
-    aws_iam,
-    aws_logs,
-    RemovalPolicy,
-    CfnOutput)
+from aws_cdk import (Stack, aws_ec2, aws_ecs, aws_rds, aws_secretsmanager,
+                     aws_apigateway, aws_elasticloadbalancingv2, aws_logs,
+                     aws_elasticbeanstalk as elasticbeanstalk, aws_s3_assets,
+                     aws_iam, aws_logs, RemovalPolicy, CfnOutput)
 from constructs import Construct
 import json
 
@@ -57,7 +44,8 @@ class MainStack(Stack):
         # S3 asset for eb
         eb_asset = aws_s3_assets.Asset(self,
                                        "BundledAsset",
-                                       path=os.getcwd() + "/flaskapp3")
+                                       path=os.getcwd() +
+                                       "/microservices/room")
 
         appName = "MyCfnApplication"
         cfn_application = elasticbeanstalk.CfnApplication(
@@ -90,10 +78,10 @@ class MainStack(Stack):
                     namespace="aws:autoscaling:launchconfiguration",
                     option_name="IamInstanceProfile",
                     value=eb_ec2_role_name),
-                elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
-                    namespace="aws:elasticbeanstalk:container:python",
-                    option_name="WSGIPath",
-                ),
+                # elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
+                #     namespace="aws:elasticbeanstalk:container:python",
+                #     option_name="WSGIPath",
+                # ),
                 # Logs
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:cloudwatch:logs",
@@ -130,7 +118,8 @@ class MainStack(Stack):
         task_definition = aws_ecs.Ec2TaskDefinition(self, "TaskDef")
         ec2container = task_definition.add_container(
             "DefaultContainer",
-            image=aws_ecs.ContainerImage.from_asset('flaskapp'),
+            image=aws_ecs.ContainerImage.from_asset('microservices',
+                                                    file="video/Dockerfile"),
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
             secrets={
@@ -162,7 +151,8 @@ class MainStack(Stack):
         )
         container = fargate_task_definition.add_container(
             "Container",
-            image=aws_ecs.ContainerImage.from_asset('flaskapp2'),
+            image=aws_ecs.ContainerImage.from_asset('microservices',
+                                                    file="user/Dockerfile"),
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
             secrets={
                 "dbsecret":
@@ -218,6 +208,7 @@ class MainStack(Stack):
             targets=[fargate_service])
 
         # --------------------- API Gateway ---------------------
+        # Note: After updating the microservices, make sure to manually deploy API again to connect to updated url.
         api = aws_apigateway.RestApi(self, "api")
 
         api.root.add_method(
@@ -227,7 +218,7 @@ class MainStack(Stack):
                     status_code="200",
                     response_templates={
                         "application/json":
-                        "{'validPath':['/rooms','/rooms/dbtest','/user','/user/dbtest','/video','/video/dbtest']}"
+                        "{'validPath':['/room','/room/dbtest','/user','/user/dbtest','/video','/video/dbtest']}"
                     },
                 )
             ],
@@ -239,17 +230,17 @@ class MainStack(Stack):
                 aws_apigateway.MethodResponse(status_code="200")
             ])
 
-        rooms = api.root.add_resource("rooms")
-        rooms.add_method(
+        room = api.root.add_resource("room")
+        room.add_method(
             "ANY",
             aws_apigateway.HttpIntegration(
-                f"http://{cfn_environment.attr_endpoint_url}/rooms"))
-        rooms.add_proxy(
+                f"http://{cfn_environment.attr_endpoint_url}/room"))
+        room.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
                 request_parameters={"method.request.path.proxy": True}),
             default_integration=aws_apigateway.HttpIntegration(
-                f"http://{cfn_environment.attr_endpoint_url}/rooms/{{proxy}}",
+                f"http://{cfn_environment.attr_endpoint_url}/room/{{proxy}}",
                 proxy=True,
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
@@ -291,6 +282,7 @@ class MainStack(Stack):
                 })))
 
         # --------------------- Output ---------------------
+        # Use ApiUrl for all requests
         CfnOutput(self, 'ApiURL', value=api.url)
         CfnOutput(self,
                   'LoadBalancerServiceURL',

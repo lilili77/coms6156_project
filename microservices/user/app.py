@@ -2,8 +2,16 @@ from flask import Flask
 import os
 import json
 
+import sys
+# db util class is imported from ../room/db.py
+# Add path to the sys.path so that we can import it
+db_dir = os.path.join(os.path.dirname(__file__), '..', 'room')
+sys.path.append(db_dir)
+
 from db import DButil
 
+# This app is deployed in Fargate
+# Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
 
 
@@ -15,7 +23,7 @@ def home():
 
 @app.route('/user')
 def fargate():
-    return f"<p>route:/user instance:Fargate folder:flaskapp2</p>"
+    return f"<p>route:/user instance:Fargate</p>"
 
 
 @app.route('/user/dbtest')
@@ -23,7 +31,7 @@ def dbtest():
     db = DButil()
     db.close()
     dbhost = json.loads(os.environ.get('dbsecret', "{}"))
-    return f"<p>route:/user/dbtest instance:Fargate folder:flaskapp2</p> <br> <p>DB host: {dbhost.get('host','Not Found')}</p>"
+    return f"<p>route:/user/dbtest instance:Fargate</p> <br> <p>DB host: {dbhost.get('host','Not Found')}</p>"
 
 
 if __name__ == "__main__":
