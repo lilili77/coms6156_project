@@ -6,14 +6,18 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from marshmallow import fields
 from flask import request
-from sqlalchemy import create_engine
+
 
 app = Flask(__name__)
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://login:password.@127.0.0.1/test'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://login:password.@localhost:8080'
+def connect_to_db():
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Lzy646898.@127.0.0.1/test'
+    return app
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://login:password.@localhost:8080'
 # engine = create_engine("postgresql://postgres:postgres@localhost:8080/test_6156")
+app = connect_to_db()
 db = SQLAlchemy(app)
 ma = Marshmallow()
+
 
 class RoomModel(db.Model):
     __tablename__ = 'room'
@@ -41,7 +45,7 @@ room_schema = RoomSchema()
 with app.app_context(): 
     db.create_all()
 
-@app.route('/room/create', methods = ['POST'])
+@app.route('/rooms', methods = ['POST'])
 def create_room():
     json_data = request.get_json(force=True)
     if not json_data:
@@ -53,6 +57,8 @@ def create_room():
     # if room:
     #     return {'message': 'room already exists'}, 400
     #except for room_id there is no unique key so no checking
+    if 'host_id' not in json_data or 'video_id' not in json_data or 'name' not in json_data:
+        return { "message": 'missing data' }, 400
     room = RoomModel(
         host_id=json_data['host_id'],
         video_id=json_data['video_id'],
@@ -65,7 +71,7 @@ def create_room():
     return { "status": 'success', 'data': result }, 201
 
 
-@app.route('/room/getAll', methods = ['GET'])
+@app.route('/rooms', methods = ['GET'])
 def get_all_rooms():
         rooms = RoomModel.query.all()
         rooms = rooms_schema.dump(rooms)
@@ -74,7 +80,7 @@ def get_all_rooms():
         return {'status':'success', 'data':rooms}, 200
 
 
-@app.route('/room/get/<int:id>', methods = ['GET'])
+@app.route('/rooms/<int:id>', methods = ['GET'])
 def get_room(id):
         room = RoomModel.query.get(id)
         print(room)
@@ -86,9 +92,13 @@ def get_room(id):
 
 #only host can delete room
 #'<int:host_id>/room/delete/<int:id>'
-@app.route('/<int:host_id>/room/delete/<int:id>', methods = ['DELETE'])
-def delete_room(host_id, id):
+@app.route('/rooms/<int:id>', methods = ['DELETE'])
+def delete_room(id):
         room = RoomModel.query.get(id)
+        json_data = request.get_json(force=True)
+        if not json_data:
+            return {'message': 'No input data provided'}, 400
+        host_id = json_data['host_id']
         if host_id != room.host_id:
             return {'message': 'Action not do valid, host_id not match'}, 400
         room = RoomModel.query.filter_by(id=id).delete()
@@ -99,11 +109,14 @@ def delete_room(host_id, id):
 
 #only host can update room
 #'<int:host_id>/room/update/<int:id>'
-@app.route('/<int:host_id>/room/update/<int:id>', methods = ['PUT'])
-def update_room(host_id,id):
+@app.route('/rooms/<int:id>', methods = ['PUT'])
+def update_room(id):
     json_data = request.get_json(force=True)
     if not json_data:
         return {'message': 'No input data provided'}, 400
+    if 'host_id' not in json_data:
+        return {'message': 'Action not valid, host_id not found'}, 400
+    host_id = json_data['host_id']
     # data, errors = room_schema.load(json_data)
     # if errors:
     #     return errors, 422
@@ -113,9 +126,9 @@ def update_room(host_id,id):
     #except for room_id there is no unique key so no checking
     room = RoomModel.query.get(id)
     if not room:
-        return {'message': 'Room do not exist'}, 400
+        return {'message': 'Room does not exist'}, 400
     if host_id != room.host_id:
-        return {'message': 'Action not do valid, host_id not match'}, 400
+        return {'message': 'Action not valid, host_id not match'}, 400
     if 'video_id' in json_data:
         room.video_id = json_data['video_id']
     if 'name' in json_data:

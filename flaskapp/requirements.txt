@@ -6,3 +6,8 @@ MarkupSafe==2.1.1
 Werkzeug==2.2.2
 flask-sqlalchemy
 flask-marshmallow
+psycopg2
+cryptography
+flask-unittest
+pytestß
+mock-alchemy
