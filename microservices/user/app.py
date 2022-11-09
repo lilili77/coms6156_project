@@ -1,5 +1,5 @@
+from db import DButil
 from flask import Flask
-from flask import request
 import os
 import json
 
@@ -9,7 +9,6 @@ import sys
 db_dir = os.path.join(os.path.dirname(__file__), '..', 'room')
 sys.path.append(db_dir)
 
-from db import DButil
 
 # This app is deployed in Fargate
 # Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
