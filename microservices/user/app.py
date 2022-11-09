@@ -57,7 +57,7 @@ def cognito_test():
     }, 200
 
 
-@app.route('/user', methods=['POST'])
+@app.route('/user/sign-up', methods=['POST'])
 def sign_up():
     json_data = request.get_json(force=True)
     print(json_data)
@@ -95,9 +95,46 @@ def sign_up():
     except Exception as e:
         return {'status': False, 'message': str(e)}, 400
 
+    return {'status': 'success', 'message': 'Registered'}, 200
+
+
+@app.route('/user/sign-in', methods=['POST'])
+def sign_in():
+    json_data = request.get_json(force=True)
+    print(json_data)
+    username = json_data["username"]
+    password = json_data["password"]
+
+    if username is None or username == '' or password is None or password == '':
+        return {
+            'status': 'error',
+            'message': 'The username or password is missing'
+        }, 400
+
+    try:
+        response = cognito.initiate_auth(ClientId=get_client_id(),
+                                         AuthFlow='USER_PASSWORD_AUTH',
+                                         AuthParameters={
+                                             'USERNAME': username,
+                                             'PASSWORD': password,
+                                         })
+    except cognito.exceptions.NotAuthorizedException:
+        return {
+            'status': 'error',
+            'message': 'The username or password is incorrect'
+        }, 400
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}, 400
+
+    auth_result = response['AuthenticationResult']
     return {
         'status': 'success',
-        'message': 'Account created. Please log in'
+        'message': 'Logged in',
+        'data': {
+            'accessToken': auth_result['AccessToken'],
+            'refreshToken': auth_result['RefreshToken'],
+            'expiresIn': auth_result['ExpiresIn']
+        }
     }, 200
 
 

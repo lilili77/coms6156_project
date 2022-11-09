@@ -51,7 +51,8 @@ class MainStack(Stack):
             self,
             "UserPoolClient",
             user_pool=user_pool,
-        )
+            auth_flows=aws_cognito.AuthFlow(user_password=True,
+                                            admin_user_password=True))
 
         # --------------------- EB ---------------------
         # S3 asset for eb
