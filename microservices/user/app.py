@@ -1,7 +1,9 @@
-from flask import Flask
+from flask import Flask, request
 import os
 import json
 import sys
+import logging
+import boto3
 
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
@@ -13,6 +15,19 @@ from db import DButil
 # This app is deployed in Fargate
 # Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
+
+logger = logging.getLogger()
+
+# Cognito
+cognito = boto3.client('cognito-idp')
+
+
+def get_client_id():
+    return os.environ.get('cognito_userPoolClientId', '')
+
+
+def get_user_pool_id():
+    return os.environ.get('cognito_userPoolId', '')
 
 
 # Health check
@@ -36,18 +51,54 @@ def dbtest():
 
 @app.route('/user/cognito-test')
 def cognito_test():
-    user_pool_id = os.environ.get('cognitco_userPoolId', '')
-    user_pool_client_id = os.environ.get('cognitco_userPoolClientId', '')
-
     return {
-        'user_pool_id': user_pool_id,
-        'user_pool_client_id': user_pool_client_id
+        'user_pool_id': get_user_pool_id(),
+        'user_pool_client_id': get_client_id()
     }, 200
 
 
-@app.route('/user/sign-up')
+@app.route('/user', methods=['POST'])
 def sign_up():
-    return ''
+    json_data = request.get_json(force=True)
+    print(json_data)
+    username = json_data["username"]
+    email = json_data["email"]
+    password = json_data["password"]
+
+    try:
+        # create user with admin to skip email verification
+        response = cognito.admin_create_user(UserPoolId=get_user_pool_id(),
+                                             Username=username,
+                                             UserAttributes=[{
+                                                 'Name': 'email',
+                                                 'Value': email
+                                             }],
+                                             MessageAction='SUPPRESS')
+
+        response = cognito.admin_set_user_password(
+            UserPoolId=get_user_pool_id(),
+            Username=username,
+            Password=password,
+            Permanent=True)
+    except cognito.exceptions.UsernameExistsException as e:
+        return {
+            'status': 'error',
+            'message': 'This username already exists'
+        }, 400
+    except cognito.exceptions.InvalidPasswordException as e:
+        return {
+            'status':
+            'error',
+            'message':
+            'Password should have lowercase, uppercase, special chars, numbers with at least 8 chars.'
+        }, 400
+    except Exception as e:
+        return {'status': False, 'message': str(e)}, 400
+
+    return {
+        'status': 'success',
+        'message': 'Account created. Please log in'
+    }, 200
 
 
 if __name__ == "__main__":

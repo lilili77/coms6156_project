@@ -7,6 +7,7 @@ from constructs import Construct
 import json
 import os
 
+
 class MainStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -43,7 +44,8 @@ class MainStack(Stack):
         # --------------------- Cognito ---------------------
         user_pool = aws_cognito.UserPool(self,
                                          "UserPool",
-                                         user_pool_name="zoomflex-userpool")
+                                         user_pool_name="zoomflex-userpool",
+                                         self_sign_up_enabled=True)
 
         user_pool_client = aws_cognito.UserPoolClient(
             self,
@@ -166,8 +168,8 @@ class MainStack(Stack):
                                                     file="user/Dockerfile"),
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
             environment={
-                "cognitco_userPoolId": user_pool.user_pool_id,
-                "cognitco_userPoolClientId":
+                "cognito_userPoolId": user_pool.user_pool_id,
+                "cognito_userPoolClientId":
                 user_pool_client.user_pool_client_id,
             },
             secrets={
