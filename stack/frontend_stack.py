@@ -1,5 +1,5 @@
-from aws_cdk import (aws_cognito, aws_s3, aws_s3_deployment, RemovalPolicy,
-                     Stack, CfnOutput)
+from aws_cdk import (aws_s3, aws_s3_deployment, RemovalPolicy, Stack,
+                     CfnOutput)
 
 from constructs import Construct
 
@@ -8,11 +8,6 @@ class FrontendStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-
-        # Cognito
-        aws_cognito.UserPool(self,
-                             "userPool",
-                             user_pool_name="zoomflex-userpool")
 
         # S3 static website
         website_bucket = aws_s3.Bucket(self,

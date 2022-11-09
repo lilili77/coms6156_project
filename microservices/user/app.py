@@ -1,14 +1,14 @@
-from db import DButil
 from flask import Flask
 import os
 import json
-
 import sys
+
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
 db_dir = os.path.join(os.path.dirname(__file__), '..', 'room')
 sys.path.append(db_dir)
 
+from db import DButil
 
 # This app is deployed in Fargate
 # Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
@@ -32,6 +32,22 @@ def dbtest():
     db.close()
     dbhost = json.loads(os.environ.get('dbsecret', "{}"))
     return f"<p>route:/user/dbtest instance:Fargate</p> <br> <p>DB host: {dbhost.get('host','Not Found')}</p>"
+
+
+@app.route('/user/cognito-test')
+def cognito_test():
+    user_pool_id = os.environ.get('cognitco_userPoolId', '')
+    user_pool_client_id = os.environ.get('cognitco_userPoolClientId', '')
+
+    return {
+        'user_pool_id': user_pool_id,
+        'user_pool_client_id': user_pool_client_id
+    }, 200
+
+
+@app.route('/user/sign-up')
+def sign_up():
+    return ''
 
 
 if __name__ == "__main__":

@@ -1,12 +1,11 @@
-from aws_cdk import (Stack, aws_ec2, aws_ecs, aws_rds, aws_secretsmanager,
+from aws_cdk import (aws_cognito, aws_ec2, aws_ecs, aws_rds,
+                     aws_secretsmanager, Stack, aws_secretsmanager,
                      aws_apigateway, aws_elasticloadbalancingv2, aws_logs,
                      aws_elasticbeanstalk as elasticbeanstalk, aws_s3_assets,
                      aws_iam, aws_logs, RemovalPolicy, CfnOutput)
 from constructs import Construct
 import json
-
 import os
-
 
 class MainStack(Stack):
 
@@ -23,13 +22,14 @@ class MainStack(Stack):
 
         # --------------------- RDS ---------------------
         # Templated secret with username and password fields
-        templated_secret = aws_secretsmanager.Secret(
+        rds_secret = aws_secretsmanager.Secret(
             self,
-            "TemplatedSecret",
+            "RdsSecret",
             generate_secret_string=aws_secretsmanager.SecretStringGenerator(
                 secret_string_template=json.dumps({"username": "postgres"}),
                 generate_string_key="password",
                 exclude_characters='/@" '))
+
         # Using the templated secret as credentials
         postgresRDS = aws_rds.DatabaseInstance(
             self,
@@ -37,8 +37,19 @@ class MainStack(Stack):
             engine=aws_rds.DatabaseInstanceEngine.POSTGRES,
             instance_type=aws_ec2.InstanceType.of(aws_ec2.InstanceClass.T4G,
                                                   aws_ec2.InstanceSize.MICRO),
-            credentials=aws_rds.Credentials.from_secret(templated_secret),
+            credentials=aws_rds.Credentials.from_secret(rds_secret),
             vpc=vpc)
+
+        # --------------------- Cognito ---------------------
+        user_pool = aws_cognito.UserPool(self,
+                                         "UserPool",
+                                         user_pool_name="zoomflex-userpool")
+
+        user_pool_client = aws_cognito.UserPoolClient(
+            self,
+            "UserPoolClient",
+            user_pool=user_pool,
+        )
 
         # --------------------- EB ---------------------
         # S3 asset for eb
@@ -95,7 +106,7 @@ class MainStack(Stack):
                 elasticbeanstalk.CfnEnvironment.OptionSettingProperty(
                     namespace="aws:elasticbeanstalk:application:environment",
                     option_name="DBSECRET",
-                    value=templated_secret.secret_full_arn)
+                    value=rds_secret.secret_full_arn)
             ],
             version_label=cfn_application_version.ref)
         cfn_application_version.node.add_dependency(cfn_application)
@@ -103,7 +114,7 @@ class MainStack(Stack):
         # Grant eb access to secret
         eb_ec2_role = aws_iam.Role.from_role_name(self, "eb_ec2_role",
                                                   eb_ec2_role_name)
-        templated_secret.grant_read(eb_ec2_role)
+        rds_secret.grant_read(eb_ec2_role)
 
         # --------------------- EC2 ---------------------
         ec2log_group = aws_logs.LogGroup(
@@ -123,8 +134,7 @@ class MainStack(Stack):
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
             secrets={
-                "dbsecret":
-                aws_ecs.Secret.from_secrets_manager(templated_secret)
+                "dbsecret": aws_ecs.Secret.from_secrets_manager(rds_secret)
             },
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="ec2log",
@@ -155,9 +165,13 @@ class MainStack(Stack):
             image=aws_ecs.ContainerImage.from_asset('microservices',
                                                     file="user/Dockerfile"),
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
+            environment={
+                "cognitco_userPoolId": user_pool.user_pool_id,
+                "cognitco_userPoolClientId":
+                user_pool_client.user_pool_client_id,
+            },
             secrets={
-                "dbsecret":
-                aws_ecs.Secret.from_secrets_manager(templated_secret)
+                "dbsecret": aws_ecs.Secret.from_secrets_manager(rds_secret)
             },
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="fargatelog",
@@ -291,3 +305,7 @@ class MainStack(Stack):
         CfnOutput(self,
                   'ElasticBeanstalkURL',
                   value=cfn_environment.attr_endpoint_url)
+        CfnOutput(self, 'UserPoolId', value=user_pool.user_pool_id)
+        CfnOutput(self,
+                  'UserPoolClientId',
+                  value=user_pool_client.user_pool_client_id)
