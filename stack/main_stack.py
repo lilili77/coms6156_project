@@ -257,7 +257,8 @@ class MainStack(Stack):
         room.add_method(
             "ANY",
             aws_apigateway.HttpIntegration(
-                f"http://{cfn_environment.attr_endpoint_url}/room"))
+                f"http://{cfn_environment.attr_endpoint_url}/room",
+                http_method="ANY"))
         room.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
@@ -268,13 +269,15 @@ class MainStack(Stack):
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
                     "method.request.path.proxy"
-                })))
+                }),
+                http_method="ANY"))
 
         video = api.root.add_resource("video")
         video.add_method(
             "ANY",
             aws_apigateway.HttpIntegration(
-                f"http://{lb.load_balancer_dns_name}/video"))
+                f"http://{lb.load_balancer_dns_name}/video",
+                http_method="ANY"))
         video.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
@@ -285,13 +288,14 @@ class MainStack(Stack):
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
                     "method.request.path.proxy"
-                })))
+                }),
+                http_method="ANY"))
 
         user = api.root.add_resource("user")
         user.add_method(
             "ANY",
             aws_apigateway.HttpIntegration(
-                f"http://{lb.load_balancer_dns_name}/user"))
+                f"http://{lb.load_balancer_dns_name}/user", http_method="ANY"))
         user.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
@@ -302,7 +306,9 @@ class MainStack(Stack):
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
                     "method.request.path.proxy"
-                })))
+                }),
+                http_method="ANY"),
+        )
 
         # --------------------- Output ---------------------
         # Use ApiUrl for all requests

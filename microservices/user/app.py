@@ -17,6 +17,7 @@ from db import DButil
 # Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
 CORS(app)
+
 logger = logging.getLogger()
 
 # Cognito
