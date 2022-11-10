@@ -180,13 +180,18 @@ class MainStack(Stack):
                 stream_prefix="fargatelog",
                 log_group=fargatelog_group,
             ))
+
+        fargate_task_definition.add_to_task_role_policy(
+            aws_iam.PolicyStatement(effect=aws_iam.Effect.ALLOW,
+                                    actions=["cognito-idp:*"],
+                                    resources=["*"]))
+
         fargate_service = aws_ecs.FargateService(
             self,
             "Service",
             cluster=cluster,
             task_definition=fargate_task_definition,
             desired_count=1)
-        fargate_task_definition.node.add_dependency(postgresRDS)
 
         # --------------------- LB ---------------------
         lb = aws_elasticloadbalancingv2.ApplicationLoadBalancer(

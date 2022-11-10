@@ -79,13 +79,15 @@ def sign_up():
 
     try:
         # create user with admin to skip email verification
-        response = cognito.admin_create_user(UserPoolId=get_user_pool_id(),
-                                             Username=username,
-                                             UserAttributes=[{
-                                                 'Name': 'email',
-                                                 'Value': email
-                                             }],
-                                             MessageAction='SUPPRESS')
+        response = cognito.admin_create_user(
+            UserPoolId=get_user_pool_id(),
+            Username=username,
+            UserAttributes=[{
+                'Name': 'email',
+                'Value': email
+            }],
+            MessageAction='SUPPRESS',
+        )
 
         response = cognito.admin_set_user_password(
             UserPoolId=get_user_pool_id(),
