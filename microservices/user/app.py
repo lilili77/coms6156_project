@@ -1,4 +1,5 @@
 from flask import Flask, request
+from flask_cors import CORS
 import os
 import json
 import sys
@@ -15,7 +16,7 @@ from db import DButil
 # This app is deployed in Fargate
 # Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
-
+CORS(app)
 logger = logging.getLogger()
 
 # Cognito
@@ -57,6 +58,10 @@ def cognito_test():
     }, 200
 
 
+def is_empty(text):
+    return text is None or text == ''
+
+
 @app.route('/user/sign-up', methods=['POST'])
 def sign_up():
     json_data = request.get_json(force=True)
@@ -64,6 +69,12 @@ def sign_up():
     username = json_data["username"]
     email = json_data["email"]
     password = json_data["password"]
+
+    if is_empty(username) or is_empty(password) or is_empty(email):
+        return {
+            'status': 'error',
+            'message': 'The username, email, or password is missing'
+        }, 400
 
     try:
         # create user with admin to skip email verification
@@ -105,7 +116,7 @@ def sign_in():
     username = json_data["username"]
     password = json_data["password"]
 
-    if username is None or username == '' or password is None or password == '':
+    if is_empty(username) or is_empty(password):
         return {
             'status': 'error',
             'message': 'The username or password is missing'

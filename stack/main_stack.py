@@ -227,7 +227,12 @@ class MainStack(Stack):
 
         # --------------------- API Gateway ---------------------
         # Note: After updating the microservices, make sure to manually deploy API again to connect to updated url.
-        api = aws_apigateway.RestApi(self, "api")
+        api = aws_apigateway.RestApi(
+            self,
+            "api",
+            default_cors_preflight_options=aws_apigateway.CorsOptions(
+                allow_origins=aws_apigateway.Cors.ALL_ORIGINS,
+                allow_methods=aws_apigateway.Cors.ALL_METHODS))
 
         api.root.add_method(
             "GET",
@@ -270,7 +275,7 @@ class MainStack(Stack):
             "ANY",
             aws_apigateway.HttpIntegration(
                 f"http://{lb.load_balancer_dns_name}/video"))
-        proxy = video.add_proxy(
+        video.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
                 request_parameters={"method.request.path.proxy": True}),
