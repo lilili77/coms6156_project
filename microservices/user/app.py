@@ -1,5 +1,6 @@
 from flask import Flask, request
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 import os
 import json
 import sys
@@ -23,6 +24,24 @@ logger = logging.getLogger()
 # Cognito
 cognito = boto3.client('cognito-idp')
 
+rds = DButil()
+rds.connect()
+
+sqlDB = SQLAlchemy()
+app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
+
+
+class User(sqlDB.Model):
+    username = sqlDB.Column(sqlDB.String,
+                            primary_key=True,
+                            unique=True,
+                            nullable=False)
+    email = sqlDB.Column(sqlDB.String)
+    current_room = sqlDB.Column(sqlDB.Integer, nullable=True)
+
+
+sqlDB.init_app(app)
+
 
 def get_client_id():
     return os.environ.get('cognito_userPoolClientId', '')
@@ -45,10 +64,31 @@ def fargate():
 
 @app.route('/user/dbtest')
 def dbtest():
-    db = DButil()
-    db.close()
+    rds = DButil()
+    rds.close()
     dbhost = json.loads(os.environ.get('dbsecret', "{}"))
     return f"<p>route:/user/dbtest instance:Fargate</p> <br> <p>DB host: {dbhost.get('host','Not Found')}</p>"
+
+
+@app.route('/user/users', methods=['POST'])
+def add_user():
+    json_data = request.get_json(force=True)
+    username = json_data["username"]
+    email = json_data["email"]
+
+    user = User(username=username, email=email)
+    sqlDB.session.add(user)
+    sqlDB.session.commit()
+
+    return {"username": user.username, "email": user.email}, 200
+
+
+@app.route('/user/users', methods=['GET'])
+def list_users():
+    users = User.query.all()
+    print(users)
+    print('hi')
+    return {'status': 'success', 'data': 'yay'}, 200
 
 
 @app.route('/user/cognito-test')
@@ -66,7 +106,6 @@ def is_empty(text):
 @app.route('/user/sign-up', methods=['POST'])
 def sign_up():
     json_data = request.get_json(force=True)
-    print(json_data)
     username = json_data["username"]
     email = json_data["email"]
     password = json_data["password"]
@@ -115,7 +154,6 @@ def sign_up():
 @app.route('/user/sign-in', methods=['POST'])
 def sign_in():
     json_data = request.get_json(force=True)
-    print(json_data)
     username = json_data["username"]
     password = json_data["password"]
 

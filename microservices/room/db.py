@@ -6,11 +6,13 @@ import logging
 
 class DButil():
     engine = None
+    database_uri = None
 
     def __init__(self, credentials=None):
 
         if not credentials:
             env = json.loads(os.environ.get('dbsecret', "{}"))
+            print(env)
             self.user = env['username']
             self.password = env['password']
             self.host = env['host']
@@ -27,6 +29,7 @@ class DButil():
 
     def connect(self):
         try:
+            DButil.database_uri = f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
             DButil.engine = create_engine(
                 url=
                 f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
