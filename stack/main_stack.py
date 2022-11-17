@@ -2,7 +2,8 @@ from aws_cdk import (aws_cognito, aws_ec2, aws_ecs, aws_rds,
                      aws_secretsmanager, Stack, aws_secretsmanager,
                      aws_apigateway, aws_elasticloadbalancingv2, aws_logs,
                      aws_elasticbeanstalk as elasticbeanstalk, aws_s3_assets,
-                     aws_iam, aws_logs, RemovalPolicy, CfnOutput)
+                     aws_iam, aws_logs, aws_sns, aws_lambda,
+                     aws_sns_subscriptions, RemovalPolicy, CfnOutput)
 from constructs import Construct
 import json
 import os
@@ -39,7 +40,12 @@ class MainStack(Stack):
             instance_type=aws_ec2.InstanceType.of(aws_ec2.InstanceClass.T4G,
                                                   aws_ec2.InstanceSize.MICRO),
             credentials=aws_rds.Credentials.from_secret(rds_secret),
-            vpc=vpc)
+            publicly_accessible=True,
+            vpc=vpc,
+            vpc_subnets=aws_ec2.SubnetSelection(
+                subnet_type=aws_ec2.SubnetType.PUBLIC))
+
+        postgresRDS.connections.allow_from_any_ipv4(aws_ec2.Port.all_traffic())
 
         # --------------------- Cognito ---------------------
         user_pool = aws_cognito.UserPool(self,
@@ -53,6 +59,20 @@ class MainStack(Stack):
             user_pool=user_pool,
             auth_flows=aws_cognito.AuthFlow(user_password=True,
                                             admin_user_password=True))
+
+        # --------------------- Lambda ---------------------
+        fn = aws_lambda.Function(
+            self,
+            "NotificationFunction",
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=aws_lambda.Code.from_asset("lambda"),
+            #  vpc=vpc
+        )
+
+        # --------------------- SNS ---------------------
+        topic = aws_sns.Topic(self, "MyTopic")
+        topic.add_subscription(aws_sns_subscriptions.LambdaSubscription(fn))
 
         # --------------------- EB ---------------------
         # S3 asset for eb
@@ -136,6 +156,7 @@ class MainStack(Stack):
                                                     file="video/Dockerfile"),
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
+            environment={"TopicARN": topic.topic_arn},
             secrets={
                 "dbsecret": aws_ecs.Secret.from_secrets_manager(rds_secret)
             },
@@ -192,6 +213,7 @@ class MainStack(Stack):
             cluster=cluster,
             task_definition=fargate_task_definition,
             desired_count=1)
+        fargate_task_definition.node.add_dependency(postgresRDS)
 
         # --------------------- LB ---------------------
         lb = aws_elasticloadbalancingv2.ApplicationLoadBalancer(
