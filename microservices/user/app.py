@@ -5,7 +5,7 @@ import json
 import sys
 import logging
 import boto3
-from model import User, sql_db
+from model import UserModel, UserSchema, sa
 
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
@@ -26,13 +26,16 @@ CORS(app)
 
 rds = DButil()
 rds.connect()
-print(rds.database_uri)
-app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
 
-sql_db.init_app(app)
+local_uri = 'postgresql://xindixu@localhost:5432/zoomflex'
+
+# app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
+app.config["SQLALCHEMY_DATABASE_URI"] = local_uri
+
+sa.init_app(app)
 
 with app.app_context():
-    sql_db.create_all()
+    sa.create_all()
 
 
 def get_client_id():
@@ -68,18 +71,63 @@ def add_user():
     username = json_data["username"]
     email = json_data["email"]
 
-    user = User(username=username, email=email)
-    sql_db.session.add(user)
-    sql_db.session.commit()
+    if is_empty(username) or is_empty(email):
+        return {
+            'status': 'error',
+            'message': 'The username or email is missing'
+        }, 400
 
-    return {"username": user.username, "email": user.email}, 200
+    user = UserModel(username=username, email=email)
+    sa.session.add(user)
+    sa.session.commit()
+
+    result = UserSchema().dump(user)
+    return {'status': 'success', 'data': result}, 200
+
+
+@app.route('/user/users/<string:username>', methods=['PUT'])
+def update_user(username):
+    json_data = request.get_json(force=True)
+    email = json_data["email"]
+    current_room_id = json_data["current_room_id"]
+
+    user = UserModel.query.get(username)
+    if not user:
+        return {'status': 'error', 'message': 'User not found'}, 404
+    if not is_empty(email):
+        user.email = email
+    if not is_empty(current_room_id):
+        user.current_room_id = current_room_id
+    sa.session.commit()
+
+    result = UserSchema().dump(user)
+    return {'status': 'success', 'data': result}, 201
+
+
+@app.route('/user/users/<string:username>', methods=['DELETE'])
+def delete_user(username):
+    user = UserModel.query.filter_by(username=username).first()
+
+    sa.session.delete(user)
+    sa.session.commit()
+    return {'status': 'success'}, 201
+
+
+@app.route('/user/users/<string:username>', methods=['GET'])
+def get_user(username):
+    user = UserModel.query.get(username)
+    if not user:
+        return {'status': 'error', 'message': 'User not found'}, 404
+    result = UserSchema().dump(user)
+    return {'status': 'success', 'data': result}, 200
 
 
 @app.route('/user/users', methods=['GET'])
 def list_users():
-    users = User.query.all()
+    users = UserModel.query.all()
 
-    return {'status': 'success', 'data': json.dumps(users)}, 200
+    result = UserSchema(many=True).dump(users)
+    return {'status': 'success', 'data': result}, 200
 
 
 @app.route('/user/cognito-test')
