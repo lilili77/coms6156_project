@@ -27,10 +27,8 @@ CORS(app)
 rds = DButil()
 rds.connect()
 
-local_uri = 'postgresql://xindixu@localhost:5432/zoomflex'
-
-# app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
-app.config["SQLALCHEMY_DATABASE_URI"] = local_uri
+app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
+# app.config["SQLALCHEMY_DATABASE_URI"] = 'postgresql://xindixu@localhost:5432/zoomflex'
 
 sa.init_app(app)
 
