@@ -21,6 +21,8 @@ class MainStack(Stack):
 
         # --------------------- Cluster ---------------------
         cluster = aws_ecs.Cluster(self, 'MyCluster', vpc=vpc)
+        cluster.add_capacity("Capacity",
+                             instance_type=aws_ec2.InstanceType("t2.small"))
 
         # --------------------- RDS ---------------------
         # Templated secret with username and password fields
@@ -77,6 +79,42 @@ class MainStack(Stack):
         # --------------------- SNS ---------------------
         topic = aws_sns.Topic(self, "MyTopic")
         topic.add_subscription(aws_sns_subscriptions.LambdaSubscription(fn))
+
+        # --------------------- API Gateway init ---------------------
+        api = aws_apigateway.RestApi(
+            self,
+            "api",
+            default_cors_preflight_options=aws_apigateway.CorsOptions(
+                allow_origins=aws_apigateway.Cors.ALL_ORIGINS,
+                allow_methods=aws_apigateway.Cors.ALL_METHODS))
+
+        # --------------------- Composite EC2 ---------------------
+        composite_ec2_log_group = aws_logs.LogGroup(
+            self,
+            "CompositeEC2CustomLogGroup",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        composite_task_definition = aws_ecs.Ec2TaskDefinition(
+            self, "CompositeTaskDef")
+        composite_ec2container = composite_task_definition.add_container(
+            "CompositeContainer",
+            image=aws_ecs.ContainerImage.from_asset(
+                'microservices', file="composite/Dockerfile"),
+            memory_limit_mib=512,
+            port_mappings=[aws_ecs.PortMapping(container_port=80)],
+            environment={"ApiURL": api.url},
+            logging=aws_ecs.LogDrivers.aws_logs(
+                stream_prefix="composite_ec2log",
+                log_group=composite_ec2_log_group,
+            ))
+
+        composite_ec2_service = aws_ecs.Ec2Service(
+            self,
+            "CompositeEc2Service",
+            cluster=cluster,
+            task_definition=composite_task_definition,
+            desired_count=1)
 
         # --------------------- EB ---------------------
         # S3 asset for eb
@@ -150,9 +188,6 @@ class MainStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
-        cluster.add_capacity("Capacity",
-                             instance_type=aws_ec2.InstanceType("t2.small"),
-                             desired_capacity=1)
         task_definition = aws_ecs.Ec2TaskDefinition(self, "TaskDef")
         ec2container = task_definition.add_container(
             "DefaultContainer",
@@ -255,15 +290,18 @@ class MainStack(Stack):
                     ["/user", "/user/*"])
             ],
             targets=[fargate_service])
+        listener.add_targets(
+            "CompositeEc2",
+            port=80,
+            priority=3,
+            conditions=[
+                aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
+                    ["/cp", "/cp/*"])
+            ],
+            targets=[composite_ec2_service])
 
         # --------------------- API Gateway ---------------------
         # Note: After updating the microservices, make sure to manually deploy API again to connect to updated url.
-        api = aws_apigateway.RestApi(
-            self,
-            "api",
-            default_cors_preflight_options=aws_apigateway.CorsOptions(
-                allow_origins=aws_apigateway.Cors.ALL_ORIGINS,
-                allow_methods=aws_apigateway.Cors.ALL_METHODS))
 
         api.root.add_method(
             "GET",
@@ -333,6 +371,25 @@ class MainStack(Stack):
                 request_parameters={"method.request.path.proxy": True}),
             default_integration=aws_apigateway.HttpIntegration(
                 f"http://{lb.load_balancer_dns_name}/user/{{proxy}}",
+                proxy=True,
+                options=aws_apigateway.IntegrationOptions(request_parameters={
+                    "integration.request.path.proxy":
+                    "method.request.path.proxy"
+                }),
+                http_method="ANY"),
+        )
+
+        cp = api.root.add_resource("cp")
+        cp.add_method(
+            "ANY",
+            aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/cp", http_method="ANY"))
+        cp.add_proxy(
+            any_method=True,
+            default_method_options=aws_apigateway.MethodOptions(
+                request_parameters={"method.request.path.proxy": True}),
+            default_integration=aws_apigateway.HttpIntegration(
+                f"http://{lb.load_balancer_dns_name}/cp/{{proxy}}",
                 proxy=True,
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":
