@@ -46,6 +46,10 @@ class MainStack(Stack):
                 subnet_type=aws_ec2.SubnetType.PUBLIC))
 
         postgresRDS.connections.allow_from_any_ipv4(aws_ec2.Port.all_traffic())
+        # Sometimes vpc is not initialized first causing "Cannot create a publicly accessible DBInstance. The specified VPC has no internet gateway attached." error
+        # Hopefully adding this dependency can solve the problem
+        # If occasionally the error still occurs, simply deploy the stack again
+        postgresRDS.node.add_dependency(vpc)
 
         # --------------------- Cognito ---------------------
         user_pool = aws_cognito.UserPool(self,
