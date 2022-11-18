@@ -1,11 +1,11 @@
 from flask import Flask, request
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 import os
 import json
 import sys
 import logging
 import boto3
+from model import User, sql_db
 
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
@@ -14,33 +14,25 @@ sys.path.append(db_dir)
 
 from db import DButil
 
-# This app is deployed in Fargate
-# Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
-app = Flask(__name__)
-CORS(app)
-
 logger = logging.getLogger()
 
 # Cognito
 cognito = boto3.client('cognito-idp')
 
+# This app is deployed in Fargate
+# Log group for this instance is at COMS6156ProjectStack-FargateCustomLogGroup{some id} in CloudWatch
+app = Flask(__name__)
+CORS(app)
+
 rds = DButil()
 rds.connect()
-
-sqlDB = SQLAlchemy()
+print(rds.database_uri)
 app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
 
+sql_db.init_app(app)
 
-class User(sqlDB.Model):
-    username = sqlDB.Column(sqlDB.String,
-                            primary_key=True,
-                            unique=True,
-                            nullable=False)
-    email = sqlDB.Column(sqlDB.String)
-    current_room = sqlDB.Column(sqlDB.Integer, nullable=True)
-
-
-sqlDB.init_app(app)
+with app.app_context():
+    sql_db.create_all()
 
 
 def get_client_id():
@@ -77,8 +69,8 @@ def add_user():
     email = json_data["email"]
 
     user = User(username=username, email=email)
-    sqlDB.session.add(user)
-    sqlDB.session.commit()
+    sql_db.session.add(user)
+    sql_db.session.commit()
 
     return {"username": user.username, "email": user.email}, 200
 
@@ -86,9 +78,8 @@ def add_user():
 @app.route('/user/users', methods=['GET'])
 def list_users():
     users = User.query.all()
-    print(users)
-    print('hi')
-    return {'status': 'success', 'data': 'yay'}, 200
+
+    return {'status': 'success', 'data': json.dumps(users)}, 200
 
 
 @app.route('/user/cognito-test')
