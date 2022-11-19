@@ -1,7 +1,9 @@
 from flask import Flask
-from flask import request
 import os
 import json
+
+import requests
+from datetime import datetime
 
 # This app is deployed in EC2
 # Log group for this instance is at  in CloudWatch
@@ -16,8 +18,17 @@ def home():
 
 @app.route('/cp')
 def cp():
-
-    return "<p>CP Docker Flask App: Hello, World!</p>"
+    url = "https://33j09lwpf9.execute-api.us-east-1.amazonaws.com/prod/" + "user/users"
+    username = str(datetime.now().timestamp())
+    r = requests.request("POST",
+                         url,
+                         json={
+                             'username': username,
+                             'email': 'test@test.com'
+                         })
+    print(r.json())
+    r = requests.request("GET", url)
+    return r.json()
 
 
 if __name__ == "__main__":
