@@ -103,7 +103,10 @@ class MainStack(Stack):
                 'microservices', file="composite/Dockerfile"),
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
-            environment={"ApiURL": api.url},
+            environment={
+                "ApiURL": api.url,
+                "TopicARN": topic.topic_arn
+            },
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="composite_ec2log",
                 log_group=composite_ec2_log_group,
@@ -115,6 +118,12 @@ class MainStack(Stack):
             cluster=cluster,
             task_definition=composite_task_definition,
             desired_count=1)
+
+        # Allow instance to publish to SNS
+        composite_task_definition.add_to_task_role_policy(
+            aws_iam.PolicyStatement(effect=aws_iam.Effect.ALLOW,
+                                    actions=["sns:Publish"],
+                                    resources=["*"]))
 
         # --------------------- EB ---------------------
         # S3 asset for eb
@@ -195,7 +204,6 @@ class MainStack(Stack):
                                                     file="video/Dockerfile"),
             memory_limit_mib=512,
             port_mappings=[aws_ecs.PortMapping(container_port=80)],
-            environment={"TopicARN": topic.topic_arn},
             secrets={
                 "dbsecret": aws_ecs.Secret.from_secrets_manager(rds_secret)
             },
