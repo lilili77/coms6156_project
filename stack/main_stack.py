@@ -3,7 +3,8 @@ from aws_cdk import (aws_cognito, aws_ec2, aws_ecs, aws_rds,
                      aws_apigateway, aws_elasticloadbalancingv2, aws_logs,
                      aws_elasticbeanstalk as elasticbeanstalk, aws_s3_assets,
                      aws_iam, aws_logs, aws_sns, aws_lambda,
-                     aws_sns_subscriptions, RemovalPolicy, CfnOutput)
+                     aws_sns_subscriptions, RemovalPolicy, aws_autoscaling,
+                     Duration, CfnOutput)
 from constructs import Construct
 import json
 import os
@@ -21,6 +22,17 @@ class MainStack(Stack):
 
         # --------------------- Cluster ---------------------
         cluster = aws_ecs.Cluster(self, 'MyCluster', vpc=vpc)
+        # auto_scaling_group = aws_autoscaling.AutoScalingGroup(
+        #     self,
+        #     "ASG",
+        #     vpc=vpc,
+        #     instance_type=aws_ec2.InstanceType("t2.small"),
+        #     machine_image=aws_ecs.EcsOptimizedImage.amazon_linux2(),
+        # )
+        # cluster.add_asg_capacity_provider(
+        #     aws_ecs.AsgCapacityProvider(self,
+        #                                 "AsgCapacityProvider",
+        #                                 auto_scaling_group=auto_scaling_group))
         cluster.add_capacity("Capacity",
                              instance_type=aws_ec2.InstanceType("t2.small"))
 
@@ -110,7 +122,8 @@ class MainStack(Stack):
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="composite_ec2log",
                 log_group=composite_ec2_log_group,
-            ))
+            ),
+            stop_timeout=Duration.seconds(5))
 
         composite_ec2_service = aws_ecs.Ec2Service(
             self,
@@ -210,7 +223,8 @@ class MainStack(Stack):
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="ec2log",
                 log_group=ec2log_group,
-            ))
+            ),
+            stop_timeout=Duration.seconds(5))
 
         ec2_service = aws_ecs.Ec2Service(self,
                                          "Ec2Service",
@@ -247,7 +261,8 @@ class MainStack(Stack):
             logging=aws_ecs.LogDrivers.aws_logs(
                 stream_prefix="fargatelog",
                 log_group=fargatelog_group,
-            ))
+            ),
+            stop_timeout=Duration.seconds(5))
 
         fargate_task_definition.add_to_task_role_policy(
             aws_iam.PolicyStatement(effect=aws_iam.Effect.ALLOW,
@@ -273,6 +288,11 @@ class MainStack(Stack):
             # to 'false' and use `listener.connections` if you want to be selective
             # about who can access the load balancer.
             open=True)
+
+        # Shorten Health check time to speed up development
+        health_check = aws_elasticloadbalancingv2.HealthCheck(
+            interval=Duration.seconds(6), healthy_threshold_count=2)
+
         # Add target to the listener.
         listener.add_action(
             "Fixed",
@@ -288,7 +308,9 @@ class MainStack(Stack):
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
                     ["/video", "/video/*"])
             ],
-            targets=[ec2_service])
+            targets=[ec2_service],
+            health_check=health_check,
+            deregistration_delay=Duration.seconds(5))
         listener.add_targets(
             "Fargate",
             port=80,
@@ -297,7 +319,9 @@ class MainStack(Stack):
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
                     ["/user", "/user/*"])
             ],
-            targets=[fargate_service])
+            targets=[fargate_service],
+            health_check=health_check,
+            deregistration_delay=Duration.seconds(5))
         listener.add_targets(
             "CompositeEc2",
             port=80,
@@ -306,7 +330,14 @@ class MainStack(Stack):
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
                     ["/cp", "/cp/*"])
             ],
-            targets=[composite_ec2_service])
+            targets=[composite_ec2_service],
+            health_check=health_check,
+            deregistration_delay=Duration.seconds(5))
+
+        # auto_scaling_group.connections.allow_from(
+        #     lb,
+        #     port_range=aws_ec2.Port.all_tcp(),
+        #     description="allow incoming traffic from ALB")
 
         # --------------------- API Gateway ---------------------
         # Note: After updating the microservices, make sure to manually deploy API again to connect to updated url.
