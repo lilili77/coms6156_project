@@ -22,19 +22,21 @@ class MainStack(Stack):
 
         # --------------------- Cluster ---------------------
         cluster = aws_ecs.Cluster(self, 'MyCluster', vpc=vpc)
-        # auto_scaling_group = aws_autoscaling.AutoScalingGroup(
-        #     self,
-        #     "ASG",
-        #     vpc=vpc,
-        #     instance_type=aws_ec2.InstanceType("t2.small"),
-        #     machine_image=aws_ecs.EcsOptimizedImage.amazon_linux2(),
-        # )
-        # cluster.add_asg_capacity_provider(
-        #     aws_ecs.AsgCapacityProvider(self,
-        #                                 "AsgCapacityProvider",
-        #                                 auto_scaling_group=auto_scaling_group))
-        cluster.add_capacity("Capacity",
-                             instance_type=aws_ec2.InstanceType("t2.small"))
+        auto_scaling_group = aws_autoscaling.AutoScalingGroup(
+            self,
+            "ASG",
+            vpc=vpc,
+            instance_type=aws_ec2.InstanceType("t3.small"),
+            machine_image=aws_ecs.EcsOptimizedImage.amazon_linux2(),
+        )
+        capacity_provider = aws_ecs.AsgCapacityProvider(
+            self,
+            "AsgCapacityProvider",
+            auto_scaling_group=auto_scaling_group,
+            enable_managed_termination_protection=False)
+        cluster.add_asg_capacity_provider(capacity_provider)
+        # cluster.add_capacity("Capacity",
+        #                      instance_type=aws_ec2.InstanceType("t2.small"))
 
         # --------------------- RDS ---------------------
         # Templated secret with username and password fields
@@ -57,7 +59,10 @@ class MainStack(Stack):
             publicly_accessible=True,
             vpc=vpc,
             vpc_subnets=aws_ec2.SubnetSelection(
-                subnet_type=aws_ec2.SubnetType.PUBLIC))
+                subnet_type=aws_ec2.SubnetType.PUBLIC),
+            # Disable backup and final snapshot to speed up deployment
+            removal_policy=RemovalPolicy.DESTROY,
+            backup_retention=Duration.seconds(0))
 
         postgresRDS.connections.allow_from_any_ipv4(aws_ec2.Port.all_traffic())
         # Sometimes vpc is not initialized first causing "Cannot create a publicly accessible DBInstance. The specified VPC has no internet gateway attached." error
@@ -130,7 +135,13 @@ class MainStack(Stack):
             "CompositeEc2Service",
             cluster=cluster,
             task_definition=composite_task_definition,
-            desired_count=1)
+            desired_count=1,
+            capacity_provider_strategies=[
+                aws_ecs.CapacityProviderStrategy(
+                    capacity_provider=capacity_provider.capacity_provider_name,
+                    base=2,
+                    weight=1)
+            ])
 
         # Allow instance to publish to SNS
         composite_task_definition.add_to_task_role_policy(
@@ -226,11 +237,18 @@ class MainStack(Stack):
             ),
             stop_timeout=Duration.seconds(5))
 
-        ec2_service = aws_ecs.Ec2Service(self,
-                                         "Ec2Service",
-                                         cluster=cluster,
-                                         task_definition=task_definition,
-                                         desired_count=1)
+        ec2_service = aws_ecs.Ec2Service(
+            self,
+            "Ec2Service",
+            cluster=cluster,
+            task_definition=task_definition,
+            desired_count=1,
+            capacity_provider_strategies=[
+                aws_ecs.CapacityProviderStrategy(
+                    capacity_provider=capacity_provider.capacity_provider_name,
+                    base=2,
+                    weight=1)
+            ])
         task_definition.node.add_dependency(postgresRDS)
 
         # --------------------- ECS ---------------------
@@ -334,10 +352,10 @@ class MainStack(Stack):
             health_check=health_check,
             deregistration_delay=Duration.seconds(5))
 
-        # auto_scaling_group.connections.allow_from(
-        #     lb,
-        #     port_range=aws_ec2.Port.all_tcp(),
-        #     description="allow incoming traffic from ALB")
+        auto_scaling_group.connections.allow_from(
+            lb,
+            port_range=aws_ec2.Port.all_tcp(),
+            description="allow incoming traffic from ALB")
 
         # --------------------- API Gateway ---------------------
         # Note: After updating the microservices, make sure to manually deploy API again to connect to updated url.
