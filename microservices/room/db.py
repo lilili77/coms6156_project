@@ -25,7 +25,6 @@ class DButil():
             self.port = credentials['port']
             self.database = 'postgres'
         self.logger = logging.getLogger()
-        self.connect()
 
     def connect(self):
         try:

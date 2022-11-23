@@ -74,7 +74,8 @@ class MainStack(Stack):
         user_pool = aws_cognito.UserPool(self,
                                          "UserPool",
                                          user_pool_name="zoomflex-userpool",
-                                         self_sign_up_enabled=True)
+                                         self_sign_up_enabled=True,
+                                         removal_policy=RemovalPolicy.DESTROY)
 
         user_pool_client = aws_cognito.UserPoolClient(
             self,
@@ -89,7 +90,8 @@ class MainStack(Stack):
             "NotificationFunction",
             runtime=aws_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
-            code=aws_lambda.Code.from_asset("lambda"),
+            code=aws_lambda.Code.from_asset("lambda/notification"),
+            log_retention=aws_logs.RetentionDays.ONE_DAY
             #  vpc=vpc
         )
 
@@ -163,6 +165,7 @@ class MainStack(Stack):
             "MyCfnApplication",
             application_name=appName,
         )
+        cfn_application.node.add_dependency(postgresRDS)
 
         cfn_application_version = elasticbeanstalk.CfnApplicationVersion(
             self,
