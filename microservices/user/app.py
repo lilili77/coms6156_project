@@ -44,6 +44,15 @@ def get_user_pool_id():
     return os.environ.get('cognito_userPoolId', '')
 
 
+def add_user_to_db(username, email):
+    user = UserModel(username=username, email=email)
+    sa.session.add(user)
+    sa.session.commit()
+
+    result = UserSchema().dump(user)
+    return {'status': 'success', 'data': result}, 200
+
+
 # Health check
 @app.route('/')
 def home():
@@ -75,12 +84,7 @@ def add_user():
             'message': 'The username or email is missing'
         }, 400
 
-    user = UserModel(username=username, email=email)
-    sa.session.add(user)
-    sa.session.commit()
-
-    result = UserSchema().dump(user)
-    return {'status': 'success', 'data': result}, 200
+    return add_user_to_db(username, email)
 
 
 @app.route('/user/users/<string:username>', methods=['PUT'])
@@ -155,7 +159,7 @@ def sign_up():
 
     try:
         # create user with admin to skip email verification
-        response = cognito.admin_create_user(
+        cognito.admin_create_user(
             UserPoolId=get_user_pool_id(),
             Username=username,
             UserAttributes=[{
@@ -165,11 +169,12 @@ def sign_up():
             MessageAction='SUPPRESS',
         )
 
-        response = cognito.admin_set_user_password(
-            UserPoolId=get_user_pool_id(),
-            Username=username,
-            Password=password,
-            Permanent=True)
+        cognito.admin_set_user_password(UserPoolId=get_user_pool_id(),
+                                        Username=username,
+                                        Password=password,
+                                        Permanent=True)
+
+        response = add_user_to_db(username, email)
     except cognito.exceptions.UsernameExistsException as e:
         return {
             'status': 'error',
@@ -185,7 +190,7 @@ def sign_up():
     except Exception as e:
         return {'status': False, 'message': str(e)}, 400
 
-    return {'status': 'success', 'message': 'Registered'}, 200
+    return {'status': 'success', 'data': response}, 200
 
 
 @app.route('/user/sign-in', methods=['POST'])
