@@ -1,9 +1,10 @@
-from flask import Flask
-from flask import request
 import os
 import json
-
 import sys
+from flask import Flask, request
+from flask_cors import CORS, cross_origin
+from model import VideoModel, VideoSchema, sa
+
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
 db_dir = os.path.join(os.path.dirname(__file__), '..', 'room')
@@ -14,6 +15,21 @@ from db import DButil
 # This app is deployed in EC2
 # Log group for this instance is at COMS6156ProjectStack-EC2CustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
+CORS(app)
+
+
+# Database connection
+db = DButil()
+db.connect()
+
+app.config["SQLALCHEMY_DATABASE_URI"] = db.database_uri
+sa.init_app(app)
+
+with app.app_context():
+    sa.create_all()
+
+videos_schema = VideoSchema(many=True)
+video_schema = VideoSchema()
 
 
 # Health check
@@ -33,6 +49,81 @@ def dbtest():
     db.close()
     dbhost = json.loads(os.environ.get('dbsecret', "{}"))
     return f"<p>route:/video/dbtest instance:EC2</p> <br> <p>DB host: {dbhost.get('host','Not Found')}</p>"
+
+
+# add a video POST /video
+@app.route('/video/videos', methods=['POST'])
+def add_video():
+    json_data = request.get_json(force=True)
+    if not json_data:
+        return {'message': "Input is not valid."}, 400
+    video = VideoModel(
+        name=json_data['name'],
+        video_url=json_data['video_url'],
+        actor=json_data['actor'],
+        length=json_data['length'],
+        genre=json_data['genre'],
+        review_rating=json_data['review_rating']
+    )
+    sa.session.add(video)
+    sa.session.commit()
+    result = video_schema.dump(video)
+    return {"status": 'success', 'data': result}, 201
+
+
+# list all videos GET /video
+@app.route('/video/videos', methods=['GET'])
+def list_all_videos():
+    videos = VideoModel.query.all()
+    videos = videos_schema.dump(videos)
+    if not videos:
+        return {'status': 'not found'}, 404
+    return {'status': 'success', 'data': videos}, 200
+
+
+# show video details GET /video/:id
+@app.route('/video/videos/<int:id>', methods=['GET'])
+def search_video_by_id(id):
+    video = VideoModel.query.get(id)
+    if not video:
+        return {'status': 'Video not found'}, 404
+    video = video_schema.dump(video)
+    return {'status': 'success', 'data': video}, 200
+
+
+# delete video DELETE/video/:id
+@app.route('/video/videos/<int:id>', methods=["DELETE"])
+def delete_video(id):
+    video = VideoModel.query.filter_by(id=id).delete()
+    if not video:
+        return {'status': 'Video not found'}, 404
+    sa.session.commit()
+    result = video_schema.dump(video)
+    return {"status": 'success', 'data': result}, 204
+
+
+# update video detail PUT/video/:id
+@app.route('/video/videos/<int:id>', methods=["PUT"])
+def update_video(id):
+    json_data = request.get_json(force=True)
+    if not json_data:
+        return {'message': "Input is not valid."}, 400
+    video = VideoModel.query.get(id)
+    if not video:
+        return {'message': 'Video does not exist'}, 400
+    if 'name' in json_data:
+        video.name = json_data['name']
+    if 'actor' in json_data:
+        video.actor = json_data['actor']
+    if 'length' in json_data:
+        video.length = json_data['length']
+    if 'genre' in json_data:
+        video.genre = json_data['genre']
+    if 'review_rating' in json_data:
+        video.review_rating = json_data['review_rating']
+    sa.session.commit()
+    result = video_schema.dump(video)
+    return {"status": 'success', 'data': result}, 201
 
 
 if __name__ == "__main__":
