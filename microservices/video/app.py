@@ -4,6 +4,7 @@ import sys
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
 from model import VideoModel, VideoSchema, sa
+from imdb_api import ImdbApi
 
 # db util class is imported from ../room/db.py
 # Add path to the sys.path so that we can import it
@@ -57,13 +58,17 @@ def add_video():
     json_data = request.get_json(force=True)
     if not json_data:
         return {'message': "Input is not valid."}, 400
+    imbd = ImdbApi()
+    res = imbd.search_movie(json_data['name'])
+    if not res:
+        return {'message': "Video not found."}, 400
     video = VideoModel(
-        name=json_data['name'],
-        video_url=json_data['video_url'],
-        actor=json_data['actor'],
-        length=json_data['length'],
-        genre=json_data['genre'],
-        review_rating=json_data['review_rating']
+        name=res['Title'],
+        video_url=res['Poster'],
+        actor=res['Actors'],
+        length=res['Runtime'],
+        genre=res['Genre'],
+        review_rating=res['imdbRating']
     )
     sa.session.add(video)
     sa.session.commit()
