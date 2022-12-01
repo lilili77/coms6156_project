@@ -351,7 +351,7 @@ class MainStack(Stack):
             priority=3,
             conditions=[
                 aws_elasticloadbalancingv2.ListenerCondition.path_patterns(
-                    ["/cp", "/cp/*"])
+                    ["/room-user", "/room-user/*"])
             ],
             targets=[composite_ec2_service],
             health_check=health_check,
@@ -441,17 +441,18 @@ class MainStack(Stack):
                 http_method="ANY"),
         )
 
-        cp = api.root.add_resource("cp")
-        cp.add_method(
+        room_user = api.root.add_resource("room-user")
+        room_user.add_method(
             "ANY",
             aws_apigateway.HttpIntegration(
-                f"http://{lb.load_balancer_dns_name}/cp", http_method="ANY"))
-        cp.add_proxy(
+                f"http://{lb.load_balancer_dns_name}/room-user",
+                http_method="ANY"))
+        room_user.add_proxy(
             any_method=True,
             default_method_options=aws_apigateway.MethodOptions(
                 request_parameters={"method.request.path.proxy": True}),
             default_integration=aws_apigateway.HttpIntegration(
-                f"http://{lb.load_balancer_dns_name}/cp/{{proxy}}",
+                f"http://{lb.load_balancer_dns_name}/room-user/{{proxy}}",
                 proxy=True,
                 options=aws_apigateway.IntegrationOptions(request_parameters={
                     "integration.request.path.proxy":

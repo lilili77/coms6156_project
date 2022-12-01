@@ -17,22 +17,12 @@ def home():
     return "<p>Docker Flask App: Hello, World!</p>"
 
 
-@app.route('/cp')
+@app.route('/room-user')
 def cp():
-    url = os.environ['ApiURL'] + "user/users"
-    username = str(datetime.now().timestamp())
-    r = requests.request("POST",
-                         url,
-                         json={
-                             'username': username,
-                             'email': 'test@test.com'
-                         })
-    print(r.json())
-    r = requests.request("GET", url)
-    return r.json()
+    return "<p>Room user</p>"
 
 
-@app.route('/cp/sns')
+@app.route('/room-user/sns')
 def sns_test():
     sns_client = boto3.client('sns', region_name='us-east-1')
     r = sns_client.publish(TopicArn=os.environ['TopicARN'],
