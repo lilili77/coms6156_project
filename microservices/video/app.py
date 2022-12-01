@@ -64,7 +64,8 @@ def add_video():
         return {'message': "Video not found."}, 400
     video = VideoModel(
         name=res['Title'],
-        video_url=res['Poster'],
+        video_url=json_data['video_url'],
+        image_url=res['Poster'],
         actor=res['Actors'],
         length=res['Runtime'],
         genre=res['Genre'],
