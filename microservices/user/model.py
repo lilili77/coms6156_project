@@ -7,16 +7,15 @@ ma = Marshmallow()
 
 
 class UserModel(sa.Model):
-    __tablename__ = 'users'
-    username = sa.Column(sa.String,
-                         primary_key=True,
-                         unique=True,
-                         nullable=False)
+    __tablename__ = 'user'
+    id = sa.Column(sa.Integer, primary_key=True)
+    username = sa.Column(sa.String, nullable=False)
     email = sa.Column(sa.String)
     current_room_id = sa.Column(sa.Integer, nullable=True)
 
 
 class UserSchema(ma.Schema):
+    id = fields.Integer()
     username = fields.String()
     email = fields.String()
     current_room_id = fields.Integer()

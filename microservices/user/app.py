@@ -28,7 +28,8 @@ rds = DButil()
 rds.connect()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = rds.database_uri
-# app.config["SQLALCHEMY_DATABASE_URI"] = 'postgresql://xindixu@localhost:5432/zoomflex'
+# app.config[
+# "SQLALCHEMY_DATABASE_URI"] = 'postgresql://xindixu@localhost:5432/zoomflex'
 
 sa.init_app(app)
 
@@ -87,15 +88,18 @@ def add_user():
     return add_user_to_db(username, email)
 
 
-@app.route('/user/users/<string:username>', methods=['PUT'])
-def update_user(username):
+@app.route('/user/users/<int:id>', methods=['PUT'])
+def update_user(id):
     json_data = request.get_json(force=True)
+    username = json_data["username"]
     email = json_data["email"]
     current_room_id = json_data["current_room_id"]
 
-    user = UserModel.query.get(username)
+    user = UserModel.query.get(id)
     if not user:
         return {'status': 'error', 'message': 'User not found'}, 404
+    if not is_empty(username):
+        user.username = username
     if not is_empty(email):
         user.email = email
     if not is_empty(current_room_id):
@@ -106,18 +110,18 @@ def update_user(username):
     return {'status': 'success', 'data': result}, 201
 
 
-@app.route('/user/users/<string:username>', methods=['DELETE'])
-def delete_user(username):
-    user = UserModel.query.filter_by(username=username).first()
+@app.route('/user/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    user = UserModel.query.filter_by(id=id).first()
 
     sa.session.delete(user)
     sa.session.commit()
     return {'status': 'success'}, 201
 
 
-@app.route('/user/users/<string:username>', methods=['GET'])
-def get_user(username):
-    user = UserModel.query.get(username)
+@app.route('/user/users/<int:id>', methods=['GET'])
+def get_user(id):
+    user = UserModel.query.get(id)
     if not user:
         return {'status': 'error', 'message': 'User not found'}, 404
     result = UserSchema().dump(user)
