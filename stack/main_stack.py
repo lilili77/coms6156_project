@@ -95,6 +95,11 @@ class MainStack(Stack):
             #  vpc=vpc
         )
 
+        fn.add_to_role_policy(
+            aws_iam.PolicyStatement(effect=aws_iam.Effect.ALLOW,
+                                    actions=["ses:SendEmail"],
+                                    resources=["*"]))
+
         # --------------------- SNS ---------------------
         topic = aws_sns.Topic(self, "MyTopic")
         topic.add_subscription(aws_sns_subscriptions.LambdaSubscription(fn))
