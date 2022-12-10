@@ -76,6 +76,13 @@ def dbtest():
 @app.route('/user/users', methods=['POST'])
 def add_user():
     json_data = request.get_json(force=True)
+
+    if "username" not in json_data or "email" not in json_data:
+        return {
+            'status': 'error',
+            'message': 'The username or email is missing'
+        }, 400
+
     username = json_data["username"]
     email = json_data["email"]
 
@@ -91,9 +98,11 @@ def add_user():
 @app.route('/user/users/<int:id>', methods=['PUT'])
 def update_user(id):
     json_data = request.get_json(force=True)
-    username = json_data["username"]
-    email = json_data["email"]
-    current_room_id = json_data["current_room_id"]
+
+    username = json_data["username"] if "username" in json_data else ""
+    email = json_data["email"] if "email" in json_data else ""
+    current_room_id = json_data[
+        "current_room_id"] if "current_room_id" in json_data else ""
 
     user = UserModel.query.get(id)
     if not user:
