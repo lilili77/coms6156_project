@@ -178,7 +178,7 @@ def sign_up():
                                         Password=password,
                                         Permanent=True)
 
-        response = add_user_to_db(username, email)
+        return add_user_to_db(username, email)
     except cognito.exceptions.UsernameExistsException as e:
         return {
             'status': 'error',
@@ -193,8 +193,6 @@ def sign_up():
         }, 400
     except Exception as e:
         return {'status': False, 'message': str(e)}, 400
-
-    return {'status': 'success', 'data': response}, 200
 
 
 @app.route('/user/sign-in', methods=['POST'])
@@ -225,13 +223,18 @@ def sign_in():
         return {'status': 'error', 'message': str(e)}, 400
 
     auth_result = response['AuthenticationResult']
+    user = UserModel.query.filter_by(username=username).first()
+
     return {
         'status': 'success',
         'message': 'Logged in',
         'data': {
             'accessToken': auth_result['AccessToken'],
             'refreshToken': auth_result['RefreshToken'],
-            'expiresIn': auth_result['ExpiresIn']
+            'expiresIn': auth_result['ExpiresIn'],
+            'username': username,
+            'email': user.email,
+            'id': user.id
         }
     }, 200
 

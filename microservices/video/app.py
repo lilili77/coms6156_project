@@ -2,7 +2,7 @@ import os
 import json
 import sys
 from flask import Flask, request
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS
 from model import VideoModel, VideoSchema, sa
 from imdb_api import ImdbApi
 
@@ -17,7 +17,6 @@ from db import DButil
 # Log group for this instance is at COMS6156ProjectStack-EC2CustomLogGroup{some id} in CloudWatch
 app = Flask(__name__)
 CORS(app)
-
 
 # Database connection
 db = DButil()
@@ -62,15 +61,13 @@ def add_video():
     res = imbd.search_movie(json_data['name'])
     if not res:
         return {'message': "Video not found."}, 400
-    video = VideoModel(
-        name=res['Title'],
-        video_url=json_data['video_url'],
-        image_url=res['Poster'],
-        actor=res['Actors'],
-        length=res['Runtime'],
-        genre=res['Genre'],
-        review_rating=res['imdbRating']
-    )
+    video = VideoModel(name=res['Title'],
+                       video_url=json_data['video_url'],
+                       image_url=res['Poster'],
+                       actor=res['Actors'],
+                       length=res['Runtime'],
+                       genre=res['Genre'],
+                       review_rating=res['imdbRating'])
     sa.session.add(video)
     sa.session.commit()
     result = video_schema.dump(video)
