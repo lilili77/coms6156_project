@@ -91,19 +91,19 @@ def add_user():
 @app.route('/user/users/<int:id>', methods=['PUT'])
 def update_user(id):
     json_data = request.get_json(force=True)
-    username = json_data["username"]
-    email = json_data["email"]
-    current_room_id = json_data["current_room_id"]
+    # username = json_data["username"]
+    # email = json_data["email"]
+    # current_room_id = json_data["current_room_id"]
 
     user = UserModel.query.get(id)
     if not user:
         return {'status': 'error', 'message': 'User not found'}, 404
-    if not is_empty(username):
-        user.username = username
-    if not is_empty(email):
-        user.email = email
-    if not is_empty(current_room_id):
-        user.current_room_id = current_room_id
+    if 'username' in json_data:
+        user.username = json_data['username']
+    if 'email' in json_data:
+        user.email = json_data['email']
+    if 'current_room_id' in json_data:
+        user.current_room_id = json_data['current_room_id']
     sa.session.commit()
 
     result = UserSchema().dump(user)
@@ -134,6 +134,25 @@ def list_users():
 
     result = UserSchema(many=True).dump(users)
     return {'status': 'success', 'data': result}, 200
+
+
+@app.route('/user/remove_users/<int:current_room_id>', methods=['PUT'])
+def remove_room_for_all(current_room_id):
+    user = UserModel.query.filter_by(current_room_id=current_room_id).all()
+    for u in user:
+        u.current_room_id = None
+    sa.session.commit()
+    return {'status': 'success'}, 201
+
+
+@app.route('/user/get_users/<int:current_room_id>', methods=['GET'])
+def get_all_users(current_room_id):
+    user = UserModel.query.filter_by(current_room_id=current_room_id).all()
+    result = UserSchema(many=True).dumps(user)
+    if not result:
+        return {'status':'not found'}, 404
+    return {'status':'success', 'data':result}, 200
+
 
 
 @app.route('/user/cognito-test')
