@@ -82,7 +82,7 @@ def get_users_from_room(current_room_id):
 def sns_test(user_id,room_id):
     
     # get guest username and email
-    guest_url = os.environ['ApiURL'] + "/user/users/" + str(user_id)
+    guest_url = os.environ['ApiURL'] + "user/users/" + str(user_id)
     headers = requests.utils.default_headers()
     response_guest = requests.get(guest_url, headers=headers).json()
     guest_username = response_guest['data']['username']
@@ -101,8 +101,14 @@ def sns_test(user_id,room_id):
 
 
 
+# if __name__ == "__main__":
+#     for key, val in os.environ.items():
+#         print(f"{key}------{val}")
+#     port = int(os.environ.get('PORT', 80))
+#     app.run(debug=True, host='0.0.0.0', port=port)
+
 if __name__ == "__main__":
-    for key, val in os.environ.items():
-        print(f"{key}------{val}")
-    port = int(os.environ.get('PORT', 80))
+    # port = int(os.environ.get('PORT', 80))
+    # localhost port
+    port = int(os.environ.get('PORT', 8080))
     app.run(debug=True, host='0.0.0.0', port=port)
