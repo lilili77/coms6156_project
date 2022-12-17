@@ -78,33 +78,20 @@ def get_users_from_room(current_room_id):
     return response_user.text
 
 
-@app.route('/room-user/invite/<int:host_id>/<int:guest_id>/<int:room_id>', methods=['GET')
-def sns_test():
-    # get invitation link?
-    invite_url = os.enviton['ApiURL']'/room-user/join_room/<int:user_id>'
-    # get host username
-    host_url = os.environ['ApiURL'] + "/user/users/" + str(host_id)
-    headers = requests.utils.default_headers()
-    response_host = requests.get(host_url, headers=headers).json()
-    host_username = response_host['data']['username']
+@app.route('/room-user/invite/<int:user_id>/<int:room_id>', methods = ['GET'])
+def sns_test(user_id,room_id):
+    
     # get guest username and email
-    guest_url = os.environ['ApiURL'] + "/user/users/" + str(guest_id)
+    guest_url = os.environ['ApiURL'] + "/user/users/" + str(user_id)
     headers = requests.utils.default_headers()
     response_guest = requests.get(guest_url, headers=headers).json()
     guest_username = response_guest['data']['username']
     guest_email = response_guest['data']['email']
     # generate email
-    message = "Hi"+ guest_username + "!" + host_username + "is inviting you to watch a video on Zoomflex! The room id is " + str(room_id)
-    publishobject = {'Message': message,
-                     'Invitationlink': invite_url
-                    }
-    # Add sns subscriber                
-    # client.subscribe(
-    #     TopicArn = os.environ['TopicARN'],
-    #     Protocal='sns',
-    #     Endpoint = email
-    # )
-    # publish a email
+    content = "Hi"+ str(guest_username) + "!" + "You are invited you to watch a video on Zoomflex! The room id is " + str(room_id)
+    publishobject = {'Content': content,
+                    'Email':guest_email}
+    # sns publish
     sns_client = boto3.client('sns', region_name='us-east-1')
     r = sns_client.publish(TopicArn=os.environ['TopicARN'],
                            Message=json.dumps(publishobject),
