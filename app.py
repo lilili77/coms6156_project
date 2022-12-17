@@ -26,10 +26,10 @@ MainStack(
     # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 )
 
-# FrontendStack(
-#     app,
-#     "COMS6156FrontendStack",
-#     env=cdk.Environment(account='074126400183', region='us-east-1'),
-# )
+FrontendStack(
+    app,
+    "COMS6156FrontendStack",
+    env=cdk.Environment(account='074126400183', region='us-east-1'),
+)
 
 app.synth()
