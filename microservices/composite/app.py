@@ -88,27 +88,26 @@ def sns_test(user_id,room_id):
     guest_username = response_guest['data']['username']
     guest_email = response_guest['data']['email']
     # generate email
-    content = "Hi"+ str(guest_username) + "!" + "You are invited you to watch a video on Zoomflex! The room id is " + str(room_id)
-    publishobject = {'Content': content,
-                    'Email':guest_email}
+    content = "Hi "+ str(guest_username) + "!\n" + "  You are invited you to watch a video on Zoomflex! The room id is " + str(room_id)
+    
     # sns publish
     sns_client = boto3.client('sns', region_name='us-east-1')
     r = sns_client.publish(TopicArn=os.environ['TopicARN'],
-                           Message=json.dumps(publishobject),
+                           Message=json.dumps({"Email":guest_email,"Content":content}),
                            Subject="Invitation to join Zoomflex room")
     return r
 
 
 
 
-# if __name__ == "__main__":
-#     for key, val in os.environ.items():
-#         print(f"{key}------{val}")
-#     port = int(os.environ.get('PORT', 80))
-#     app.run(debug=True, host='0.0.0.0', port=port)
-
 if __name__ == "__main__":
-    # port = int(os.environ.get('PORT', 80))
-    # localhost port
-    port = int(os.environ.get('PORT', 8080))
+    for key, val in os.environ.items():
+        print(f"{key}------{val}")
+    port = int(os.environ.get('PORT', 80))
     app.run(debug=True, host='0.0.0.0', port=port)
+
+# if __name__ == "__main__":
+#     # port = int(os.environ.get('PORT', 80))
+#     # localhost port
+#     port = int(os.environ.get('PORT', 8080))
+#     app.run(debug=True, host='0.0.0.0', port=port)

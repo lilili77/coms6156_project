@@ -61,10 +61,12 @@ def handler(event, context):
     print(event)
     print(context)
     subject = event['Records'][0]['Sns']['Subject']
-    message = event['Records'][0]['Sns']['Message']['Content'] 
-    email = event['Records'][0]['Sns']['Message']['Email']
+    message = event['Records'][0]['Sns']['Message']
+    parsed_message = json.loads(message)
+    content = parsed_message['Content']
+    email = parsed_message['Email']
     print(subject)
-    print(message)
+    print(content)
     print(email)
-    send_email(message,subject,email)
+    send_email(content,subject,email)
     return {'statusCode': 200, 'body': json.dumps('Email sent')}
